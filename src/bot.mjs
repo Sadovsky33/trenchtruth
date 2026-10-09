@@ -19,30 +19,38 @@ const tg = async (method, body) => {
 const ADDR = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/;
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const pct = (x) => `${x >= 0 ? '+' : ''}${(100 * x).toFixed(0)}%`;
+// Polish uses a decimal comma.
+const dec = (s, L) => (L === 'pl' ? String(s).replace(/(\d)\.(\d)/g, '$1,$2') : String(s));
 
 const T = {
   pl: {
-    scanning: 'Sprawdzam monetę… (ok. 15–30 s)',
-    verdict: { high: '🔴 Wysokie ryzyko', medium: '🟠 Średnie ryzyko', low: '🟢 Brak wyraźnych sygnałów oszustwa' },
+    scanning: 'Sprawdzam monetę… (zwykle kilka sekund)',
+    verdict: { high: '🔴 Wysokie ryzyko', medium: '🟠 Średnie ryzyko', low: '🟢 Brak sygnałów ryzyka w naszych danych', unknown: '⚪ Za mało danych, żeby ocenić' },
     devBuy: (s) => `Twórca kupił na starcie: ${s} SOL`,
     sim: (d, r, why) => `Gdybyś kupił ${d} s po starcie (0,5 SOL, sprzedaż przy +50% / −20% albo po 5 min): <b>${r}</b> (${why})`,
+    simEarly: (d, age) => `Gdybyś kupił ${d} s po starcie: za wcześnie, moneta ma dopiero ${age} s`,
+    simNow: (d, r, age) => `Gdybyś kupił ${d} s po starcie (0,5 SOL): na razie <b>${r}</b> (moneta ma ${age} s, wynik końcowy po 5 min)`,
     why: { zysk: 'cel zysku', strata: 'limit straty', czas: 'po 5 min' },
     none: 'Brak wyraźnych sygnałów ryzyka w danych z pierwszych minut.',
     buy: 'Kup na Axiom (−10% opłat)',
-    foot: 'Informacja, nie porada inwestycyjna. Link do Axiom jest linkiem polecającym.',
+    foot: 'Informacja, nie porada inwestycyjna.',
+    ref: 'Link do Axiom jest linkiem polecającym.',
     notFound: 'Nie znalazłem tej monety na pump.fun.',
     err: 'Coś poszło nie tak przy sprawdzaniu. Spróbuj za chwilę.',
     hello: 'Wklej adres monety z pump.fun, a powiem Ci, czy wygląda na oszustwo i co by było, gdybyś ją kupił.',
   },
   en: {
-    scanning: 'Checking the coin… (about 15–30 s)',
-    verdict: { high: '🔴 High risk', medium: '🟠 Medium risk', low: '🟢 No clear scam signals' },
+    scanning: 'Checking the coin… (usually a few seconds)',
+    verdict: { high: '🔴 High risk', medium: '🟠 Medium risk', low: '🟢 No risk signals in our data', unknown: '⚪ Not enough data to judge' },
     devBuy: (s) => `Creator bought at launch: ${s} SOL`,
     sim: (d, r, why) => `If you had bought ${d} s after launch (0.5 SOL, sell at +50% / −20% or after 5 min): <b>${r}</b> (${why})`,
+    simEarly: (d, age) => `If you had bought ${d} s after launch: too early, the coin is only ${age} s old`,
+    simNow: (d, r, age) => `If you had bought ${d} s after launch (0.5 SOL): so far <b>${r}</b> (coin is ${age} s old, final result after 5 min)`,
     why: { zysk: 'take profit', strata: 'stop loss', czas: 'after 5 min' },
     none: 'No clear risk signals in the first minutes of data.',
     buy: 'Buy on Axiom (−10% fees)',
-    foot: 'Information, not financial advice. The Axiom link is a referral link.',
+    foot: 'Information, not financial advice.',
+    ref: 'The Axiom link is a referral link.',
     notFound: 'I could not find this coin on pump.fun.',
     err: 'Something went wrong while checking. Try again in a moment.',
     hello: 'Paste a pump.fun coin address and I will tell you if it looks like a scam and what would have happened if you had bought it.',
@@ -57,13 +65,13 @@ function card(r, L) {
     `<code>${r.mint}</code>`,
     '',
     `<b>${t.verdict[r.verdict]}</b>`,
-    ...(r.signals.length ? r.signals.map((s) => `${s.level === 'good' ? '✅' : s.level === 'info' ? 'ℹ️' : '⚠️'} ${esc(s[L])}`) : [t.none]),
-    t.devBuy(r.devBuySol.toFixed(2)),
+    ...(r.signals.length ? r.signals.map((s) => `${s.level === 'good' ? '✅' : s.level === 'info' ? 'ℹ️' : '⚠️'} ${esc(dec(s[L], L))}`) : [t.none]),
+    t.devBuy(dec(r.devBuySol.toFixed(2), L)),
     '',
-    ...r.sims.map((s) => t.sim(s.delaySec, pct(s.ret), t.why[s.reason])),
+    ...r.sims.map((s) => (s.tooEarly ? t.simEarly(s.delaySec, r.ageSec) : s.pending && s.reason === 'czas' ? t.simNow(s.delaySec, pct(s.ret), r.ageSec) : t.sim(s.delaySec, pct(s.ret), t.why[s.reason]))),
     '',
     `<i>${esc(r.note[L])}</i>`,
-    `<i>${t.foot}</i>`,
+    `<i>${t.foot}${AXIOM_REF ? ' ' + t.ref : ''}</i>`,
   ];
   const kb = AXIOM_REF ? { inline_keyboard: [[{ text: t.buy, url: `${AXIOM_REF}${AXIOM_REF.includes('?') ? '&' : '?'}chain=sol&address=${r.mint}` }]] } : undefined;
   return { text: lines.join('\n'), reply_markup: kb };

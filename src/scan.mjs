@@ -170,14 +170,20 @@ export async function scanMint(mint) {
   if (sameSlot.length >= 5) S('warn', `${sameSlot.length} zakupów w pierwszym bloku${pros.length ? `, w tym ${pros.length} zawodowych botów` : ''}: wejdziesz po nich`, `${sameSlot.length} buys in the very first block${pros.length ? `, ${pros.length} by professional bots` : ''}: you would buy after them`);
   if (devSold) S('high', `Twórca już sprzedawał (po ${Math.max(0, devSold.bt - ce.bt)} s)`, `Creator already sold (after ${Math.max(0, devSold.bt - ce.bt)} s)`);
   const ageSec = Date.now() / 1000 - ce.bt;
-  if (real5 < 0.3) S('high', ageSec > 300 ? 'Moneta padła w pierwszych 5 minutach: w krzywej nie zostało prawie żadnego SOL' : 'Moneta jest martwa: w krzywej prawie nie ma już SOL', ageSec > 300 ? 'Coin died within its first 5 minutes: almost no SOL left in the curve' : 'Coin is dead: almost no SOL left in the curve');
+  // No record of the creator or its funder: say so instead of implying the coin is clean.
+  const noRecord = !walletHist.length && !funderHist.length && funderSize < 50;
+  if (noRecord) S('info', 'Ani twórcy, ani portfela, który go zasilił, nie ma w naszej bazie (15 tys. startów z 6–7 października). Brak danych nie znaczy, że jest bezpiecznie', 'Neither the creator nor its funder is in our database (15k launches from Oct 6–7). No data does not mean safe');
+  // A coin under a minute old has had no time to attract buyers, so a near-empty curve is not "dead" yet.
+  if (real5 < 0.3 && ageSec >= 60) S('high', ageSec > 300 ? 'Moneta padła w pierwszych 5 minutach: w krzywej nie zostało prawie żadnego SOL' : 'Moneta jest martwa: w krzywej prawie nie ma już SOL', ageSec > 300 ? 'Coin died within its first 5 minutes: almost no SOL left in the curve' : 'Coin is dead: almost no SOL left in the curve');
   const highs = signals.filter((s) => s.level === 'high').length;
-  const verdict = highs >= 2 ? 'high' : highs === 1 || signals.some((s) => s.level === 'warn') ? 'medium' : 'low';
+  const verdict = highs >= 2 ? 'high' : highs === 1 || signals.some((s) => s.level === 'warn') ? 'medium' : noRecord ? 'unknown' : 'low';
+  // A simulation is final only once the entry delay plus the 5-minute hold has passed.
+  const sim = (delaySec) => ({ ...simulate(data, { delaySec }), tooEarly: ageSec < delaySec, pending: ageSec < delaySec + 300 });
   return {
-    mint, name: ce.name, symbol: ce.symbol, launchedAt: ce.bt, creator, funder,
+    mint, name: ce.name, symbol: ce.symbol, launchedAt: ce.bt, ageSec: Math.round(ageSec), creator, funder,
     devBuySol: devBuys.reduce((a, t) => a + t.sol, 0) / 1e9, firstBlockBuys: sameSlot.length,
     signals, verdict, solInCurve: real5,
-    sims: [simulate(data, { delaySec: 3 }), simulate(data, { delaySec: 30 })],
+    sims: [sim(3), sim(30)],
     note: { pl: '82% nowych monet pada w ciągu 5 minut (nasze dane: 15 tys. monet).', en: '82% of new coins die within 5 minutes (our data: 15k coins).' },
   };
 }
