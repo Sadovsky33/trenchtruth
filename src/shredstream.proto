@@ -1,0 +1,18 @@
+// Jito shredstream-proxy entry service (jito-labs/mev-protos, shredstream.proto), trimmed to the
+// one call sniper/feed-probe.mjs uses.
+syntax = "proto3";
+
+package shredstream;
+
+service ShredstreamProxy {
+  rpc SubscribeEntries(SubscribeEntriesRequest) returns (stream Entry);
+}
+
+message SubscribeEntriesRequest {}
+
+message Entry {
+  // the slot that the entry is from
+  uint64 slot = 1;
+  // Serialized bytes of Vec<Entry>: https://docs.rs/solana-entry/latest/solana_entry/entry/struct.Entry.html
+  bytes entries = 2;
+}
