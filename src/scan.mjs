@@ -22,6 +22,15 @@ async function rpc(method, params) {
     } catch (e) { if (i === 9) throw e; await sleep(500); }
   }
 }
+// Symbol of a token (for coins quoted in something other than SOL). One quick try, no retries: it is only a label.
+async function tokenSymbol(mint) {
+  try {
+    const r = await fetch(RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getAsset', params: { id: mint } }), signal: AbortSignal.timeout(3000) });
+    const j = await r.json();
+    const s = j.result?.content?.metadata?.symbol || j.result?.token_info?.symbol;
+    return s ? String(s).trim().slice(0, 16) : null;
+  } catch { return null; }
+}
 async function jito(p) {
   try {
     const r = await fetch(`https://bundles.jito.wtf/api/v1/bundles/${p}`);
@@ -174,9 +183,24 @@ const TRADING_PROGRAMS = new Set([
   'LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo', // Meteora DLMM
   'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG', // Meteora DAMM v2
 ]);
-async function txsSince(address, slot) {
-  const res = await rpc('getTransactionsForAddress', [address, { transactionDetails: 'full', sortOrder: 'asc', limit: 100, encoding: 'json', maxSupportedTransactionVersion: 1, filters: { slot: { gte: slot } } }]);
-  return res?.data || [];
+// Up to `maxPages` × 100 of an address's transactions since `slot`, stopping early at the deadline. `more` says
+// whether some were left unread.
+async function txsSince(address, slot, maxPages = 1, deadline = Infinity) {
+  const out = [];
+  let paginationToken;
+  for (let p = 0; p < maxPages; p++) {
+    const res = await rpc('getTransactionsForAddress', [address, { transactionDetails: 'full', sortOrder: 'asc', limit: 100, encoding: 'json', maxSupportedTransactionVersion: 1, filters: { slot: { gte: slot } }, ...(paginationToken ? { paginationToken } : {}) }]);
+    out.push(...(res?.data || []));
+    paginationToken = res?.paginationToken;
+    if (!paginationToken) return { txs: out, more: false };
+    if (Date.now() > deadline) break;
+  }
+  return { txs: out, more: true };
+}
+// Current balance of `mint` held by `owner` (base units).
+async function balanceOf(owner, mint) {
+  const res = await rpc('getTokenAccountsByOwner', [owner, { mint }, { encoding: 'jsonParsed' }]);
+  return (res?.value || []).reduce((a, x) => a + Number(x.account?.data?.parsed?.info?.tokenAmount?.amount || 0), 0);
 }
 function flows(tx, mint, wallet) {
   const d = {};
@@ -192,10 +216,16 @@ function flows(tx, mint, wallet) {
   return { out, traded, to };
 }
 async function traceBundle(mint, slot, wallets) {
-  let sold = 0, moved = 0, soldAfterMove = 0;
+  let sold = 0, moved = 0, soldAfterMove = 0, truncated = false;
+  const deadline = Date.now() + 8000; // keep the whole check within a few seconds
   const hops = new Map(); // recipient -> amount received from the bundle wallets
-  for (const w of wallets.slice(0, 6)) {
-    for (const tx of await txsSince(w, slot)) {
+  const ws = wallets.slice(0, 6);
+  // What they still hold right now: always exact, even when their history is too long to read in full.
+  const held = (await Promise.all(ws.map((w) => balanceOf(w, mint).catch(() => 0)))).reduce((a, b) => a + b, 0);
+  for (const w of ws) {
+    const { txs, more } = await txsSince(w, slot, 3, deadline);
+    if (more) truncated = true;
+    for (const tx of txs) {
       const f = flows(tx, mint, w);
       if (!f) continue;
       if (f.traded) sold += f.out;
@@ -204,14 +234,22 @@ async function traceBundle(mint, slot, wallets) {
   }
   // One hop further for the largest recipients.
   const top = [...hops.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-  for (const [h] of top) for (const tx of await txsSince(h, slot)) { const f = flows(tx, mint, h); if (f?.traded) soldAfterMove += f.out; }
-  return { sold, moved, soldAfterMove, recipients: hops.size };
+  for (const [h] of top) {
+    if (Date.now() > deadline) break;
+    for (const tx of (await txsSince(h, slot)).txs) { const f = flows(tx, mint, h); if (f?.traded) soldAfterMove += f.out; }
+  }
+  return { sold, moved, soldAfterMove, recipients: hops.size, truncated, held };
 }
 
 // "What if you had bought `size` SOL `delaySec` after launch and sold at +tp / −sl / after holdSec?"
+// The curve is complete (the coin moves to PumpSwap) once its virtual token reserves fall to ~279.9M tokens.
+const CURVE_DONE_VT = 2.81e14;
 export function simulate(data, { delaySec = 3, size = 0.5, tp = 0.5, sl = 0.2, holdSec = 300 } = {}) {
   const { ce, trades } = data;
   const entrySlot = ce.slot + Math.round(delaySec / 0.4);
+  // Trading after graduation happens on PumpSwap, which this simulator does not replay.
+  const grad = trades.find((t) => t.vT < CURVE_DONE_VT);
+  if (grad && grad.slot <= entrySlot) return { delaySec, gradBefore: true, ret: null, reason: 'grad' };
   let i0 = -1;
   for (let i = 0; i < trades.length; i++) { if (trades[i].slot <= entrySlot) i0 = i; else break; }
   const st = i0 >= 0 ? trades[i0] : { vS: Number(ce.virtual_sol_reserves), vT: Number(ce.virtual_token_reserves) };
@@ -234,6 +272,8 @@ export function simulate(data, { delaySec = 3, size = 0.5, tp = 0.5, sl = 0.2, h
   for (let j = Math.max(0, i0 + 1); j < trades.length && trades[j].slot <= execSlot; j++) k = j;
   const fin = k >= 0 ? trades[k] : st;
   const value = sellValue(fin.vS + solIn, (fin.vS * fin.vT) / (fin.vS + solIn), tokens);
+  // Held until the coin left the curve: the result is the value at graduation, not after 5 minutes.
+  if (exit === null && grad && grad.slot <= entrySlot + holdSec / 0.4) reason = 'grad';
   return { delaySec, entryPriceVsLaunch: (st.vS / st.vT) / (Number(ce.virtual_sol_reserves) / Number(ce.virtual_token_reserves)) - 1, ret: value / cost - 1, reason, othersBeforeSol: (st.vS - Number(ce.virtual_sol_reserves)) / 1e9 };
 }
 
@@ -276,19 +316,44 @@ export async function scanMint(mint) {
     const share = bundleShare >= 0.01 ? Math.round(100 * bundleShare) : 0;
     S('high', `Twórca kupił razem z ${nb} ${nb === 1 ? 'innym portfelem' : 'innymi portfelami'} w jednej paczce z utworzeniem${amt}${share ? `: wzięły ok. ${share}% wszystkich monet` : ''}`,
       `Creator bought together with ${nb} other wallet${nb === 1 ? '' : 's'} in the same bundle as the launch${amt}${share ? `, taking about ${share}% of the supply` : ''}`);
-    // Follow the bundle's coins: sold, moved to other wallets, or still held. Best effort: on any error the card
-    // simply goes without these lines.
-    if (bundleShare >= 0.05) {
-      try {
-        const tr = await traceBundle(mint, ce.slot, [...new Set(bundleBuys.map((t) => t.u))]);
-        const pct = (x) => Math.round((100 * x) / 1e15);
-        const soldAll = tr.sold + Math.min(tr.soldAfterMove, tr.moved); // a hop wallet may also sell coins it bought itself
-        const others = (n) => (n === 1 ? 'inny portfel' : n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14) ? 'inne portfele' : 'innych portfeli');
-        if (pct(tr.moved) >= 1) S('warn', `Portfele z paczki przerzuciły ok. ${pct(tr.moved)}% podaży na ${tr.recipients} ${others(tr.recipients)}`, `Bundle wallets moved about ${pct(tr.moved)}% of the supply to ${tr.recipients} other wallet${tr.recipients === 1 ? '' : 's'}`);
-        if (pct(soldAll) >= 1) S(pct(soldAll) >= 10 ? 'high' : 'warn', `Insiderzy z paczki już sprzedali ok. ${pct(soldAll)}% podaży${tr.soldAfterMove > 0 ? ' (część przez portfele, na które przerzucili monety)' : ''}`, `Bundle insiders have already sold about ${pct(soldAll)}% of the supply${tr.soldAfterMove > 0 ? ' (partly through the wallets they moved coins to)' : ''}`);
-        if (pct(tr.moved) < 1 && pct(soldAll) < 1) S('warn', 'Portfele z paczki wciąż trzymają swoje monety: mogą je sprzedać w każdej chwili', 'Bundle wallets still hold their coins and can sell them at any moment');
-      } catch (e) { console.error(new Date().toISOString(), 'bundle trace failed', String(e).slice(0, 120)); }
-    }
+  }
+  // The creator's own launch buy can be just as large (e.g. buying out the whole curve).
+  const devShare = devBuys.reduce((a, t) => a + t.tok, 0) / 1e15;
+  if (devShare >= 0.1) S(devShare >= 0.2 ? 'high' : 'warn', `Twórca sam kupił na starcie ok. ${Math.round(100 * devShare)}% wszystkich monet`, `The creator alone bought about ${Math.round(100 * devShare)}% of the supply at launch`);
+  // Follow the insiders' coins (bundle wallets, plus the creator if it bought a large share): sold, moved to other
+  // wallets, or still held. Best effort: on any error the card simply goes without these lines.
+  const withBundle = bundleShare >= 0.05, withDev = devShare >= 0.05;
+  if (withBundle || withDev) {
+    try {
+      const wallets = [...(withDev ? [creator] : []), ...(withBundle ? [...new Set(bundleBuys.map((t) => t.u))] : [])];
+      const tr = await traceBundle(mint, ce.slot, wallets);
+      const pct = (x) => Math.round((100 * x) / 1e15);
+      const soldAll = tr.sold + Math.min(tr.soldAfterMove, tr.moved); // a hop wallet may also sell coins it bought itself
+      const others = (n) => (n === 1 ? 'inny portfel' : n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14) ? 'inne portfele' : 'innych portfeli');
+      const who = withDev && withBundle
+        ? { pl: 'Twórca i portfele z paczki', moved: 'przerzucili', sold: 'Twórca i insiderzy z paczki już sprzedali', viaPl: 'przerzucili', hold: 'wciąż trzymają swoje monety: mogą je sprzedać', has: 'mają', bought: 'kupili', sent: 'rozesłali', en: 'The creator and bundle wallets', soldEn: 'The creator and bundle insiders have already sold', holdEn: 'still hold their coins and can sell them', hasEn: 'hold', boughtEn: 'they bought', sentEn: 'they have' }
+        : withDev
+          ? { pl: 'Twórca', moved: 'przerzucił', sold: 'Twórca już sprzedał', viaPl: 'przerzucił', hold: 'wciąż trzyma swoje monety: może je sprzedać', has: 'ma', bought: 'kupił', sent: 'rozesłał', en: 'The creator', soldEn: 'The creator has already sold', holdEn: 'still holds its coins and can sell them', hasEn: 'holds', boughtEn: 'it bought', sentEn: 'it has' }
+          : { pl: 'Portfele z paczki', moved: 'przerzuciły', sold: 'Insiderzy z paczki już sprzedali', viaPl: 'przerzucili', hold: 'wciąż trzymają swoje monety: mogą je sprzedać', has: 'mają', bought: 'kupiły', sent: 'rozesłały', en: 'Bundle wallets', soldEn: 'Bundle insiders have already sold', holdEn: 'still hold their coins and can sell them', hasEn: 'hold', boughtEn: 'they bought', sentEn: 'they have' };
+      // Coins bought at launch that are no longer in these wallets (from current balances, so always exact).
+      const bought = (withDev ? devShare : 0) * 1e15 + (withBundle ? bundleShare : 0) * 1e15;
+      const goneP = pct(Math.max(0, bought - tr.held));
+      const movedP = pct(tr.moved), soldP = pct(soldAll);
+      const goneLine = (via) => S('warn', `${who.pl} nie ${who.has} już ok. ${goneP}% podaży, którą ${who.bought} na starcie${via ? `; ${who.sent} monety na co najmniej ${tr.recipients} ${others(tr.recipients)}` : ''}`,
+        `${who.en} no longer ${who.hasEn === 'holds' ? 'holds' : 'hold'} about ${goneP}% of the supply ${who.boughtEn} at launch${via ? `; ${who.sentEn} sent coins to at least ${tr.recipients} other wallet${tr.recipients === 1 ? '' : 's'}` : ''}`);
+      if (tr.truncated && goneP >= 1) {
+        // History too long to read in full: lead with the exact balance change, then what we saw so far.
+        goneLine(movedP >= 1);
+        if (soldP >= 1) S(soldP >= 10 ? 'high' : 'warn', `${who.sold} co najmniej ${soldP}% podaży`, `${who.soldEn} at least ${soldP}% of the supply`);
+      } else {
+        if (movedP >= 1) S('warn', `${who.pl} ${who.moved} ok. ${movedP}% podaży na ${tr.recipients} ${others(tr.recipients)}`, `${who.en} moved about ${movedP}% of the supply to ${tr.recipients} other wallet${tr.recipients === 1 ? '' : 's'}`);
+        if (soldP >= 1) S(soldP >= 10 ? 'high' : 'warn', `${who.sold} ok. ${soldP}% podaży${tr.soldAfterMove > 0 ? ` (część przez portfele, na które ${who.viaPl} monety)` : ''}`, `${who.soldEn} about ${soldP}% of the supply${tr.soldAfterMove > 0 ? ' (partly through the wallets they moved coins to)' : ''}`);
+        if (movedP < 1 && soldP < 1) {
+          if (goneP < 1) S('warn', `${who.pl} ${who.hold} w każdej chwili`, `${who.en} ${who.holdEn} at any moment`);
+          else goneLine(false);
+        }
+      }
+    } catch (e) { console.error(new Date().toISOString(), 'bundle trace failed', String(e).slice(0, 120)); }
   }
   const pros = sameSlot.filter((t) => hist.proSnipers.has(t.u));
   if (sameSlot.length >= 5) S('warn', `${sameSlot.length} zakupów w pierwszym bloku${pros.length ? `, w tym ${pros.length} ${pros.length === 1 ? 'zawodowego bota' : 'zawodowych botów'}` : ''}: wejdziesz po nich`, `${sameSlot.length} buys in the very first block${pros.length ? `, ${pros.length} by ${pros.length === 1 ? 'a professional bot' : 'professional bots'}` : ''}: you would buy after them`);
@@ -300,14 +365,18 @@ export async function scanMint(mint) {
   const noRecord = noHistory && funderSize < 50;
   if (noRecord) S('info', 'Ani twórcy, ani portfela, który go zasilił, nie ma w naszej bazie (15 tys. startów z 6–7 października). Brak danych nie znaczy, że jest bezpiecznie', 'Neither the creator nor its funder is in our database (15k launches from Oct 6–7). No data does not mean safe');
   if (ce.is_mayhem_mode) S('info', 'Moneta w trybie Mayhem: przez pierwsze 24 h handluje nią agent AI pump.fun, który może mocno ruszać ceną', 'Mayhem Mode coin: for its first 24 h a pump.fun AI agent trades it and can move the price sharply');
-  if (!solQuote) S('info', 'Ta moneta jest wyceniana w innym tokenie niż SOL (np. tokenizowanej akcji), więc pomijam kwoty w SOL i symulację', 'This coin is priced in a token other than SOL (e.g. a tokenized stock), so SOL amounts and the simulator are skipped');
+  if (!solQuote) {
+    const sym = await tokenSymbol(ce.quote_mint);
+    const q = sym ? `$${sym}` : `${ce.quote_mint.slice(0, 4)}…${ce.quote_mint.slice(-4)}`;
+    S('info', `Ta moneta jest wyceniana w tokenie ${q}, a nie w SOL, więc pomijam kwoty w SOL i symulację`, `This coin is priced in ${q}, not SOL, so SOL amounts and the simulator are skipped`);
+  }
   // A coin under a minute old has had no time to attract buyers, so a near-empty curve is not "dead" yet.
   if (solQuote && real5 < 0.3 && ageSec >= 60) S('high', ageSec > 300 ? 'Moneta padła w pierwszych 5 minutach: w krzywej nie zostało prawie żadnego SOL' : 'Moneta jest martwa: w krzywej prawie nie ma już SOL', ageSec > 300 ? 'Coin died within its first 5 minutes: almost no SOL left in the curve' : 'Coin is dead: almost no SOL left in the curve');
   const highs = signals.filter((s) => s.level === 'high').length;
   // Insiders taking a fifth of the supply in the launch bundle is high risk on its own.
   const verdict = highs >= 2 || bundleShare >= 0.2 ? 'high' : highs === 1 || signals.some((s) => s.level === 'warn') ? 'medium' : noHistory ? 'unknown' : 'low';
   // A simulation is final only once the entry delay plus the 5-minute hold has passed.
-  const sim = (delaySec) => ({ ...simulate(data, { delaySec }), tooEarly: ageSec < delaySec, pending: ageSec < delaySec + 300 });
+  const sim = (delaySec) => { const s = simulate(data, { delaySec }); return { ...s, tooEarly: ageSec < delaySec && !s.gradBefore, pending: ageSec < delaySec + 300 && s.reason === 'czas' }; };
   return {
     mint, name: ce.name, symbol: ce.symbol, launchedAt: ce.bt, ageSec: Math.round(ageSec), creator, funder,
     devBuySol: solQuote ? devBuys.reduce((a, t) => a + t.sol, 0) / 1e9 : null, quoteMint: solQuote ? null : ce.quote_mint, firstBlockBuys: sameSlot.length,

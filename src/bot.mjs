@@ -13,15 +13,15 @@ const TOKEN = (process.env.BOT_TOKEN || fs.readFileSync(path.join(ROOT, 'bot-tok
 const REF_FILE = path.join(ROOT, 'axiom-ref.txt');
 const AXIOM_REF = (process.env.AXIOM_REF || (fs.existsSync(REF_FILE) ? fs.readFileSync(REF_FILE, 'utf8') : '')).trim();
 const API = `https://api.telegram.org/bot${TOKEN}`;
-// Anonymous usage log (logs/usage.jsonl): time, a salted hash of the chat id, chat type, verdict. No names,
-// usernames or message text, so it only counts checks and distinct chats.
+// Anonymous usage log (logs/usage.jsonl): time, a salted hash of the chat id, chat type, verdict and the (public)
+// coin address, so we can later check what happened to flagged coins. No names, usernames or message text.
 const LOG_DIR = path.join(ROOT, 'logs');
 const SALT = crypto.createHash('sha256').update(TOKEN).digest('hex');
-function logUse(msg, verdict) {
+function logUse(msg, verdict, mint) {
   try {
     fs.mkdirSync(LOG_DIR, { recursive: true });
     const chat = crypto.createHash('sha256').update(SALT + msg.chat.id).digest('hex').slice(0, 12);
-    fs.appendFileSync(path.join(LOG_DIR, 'usage.jsonl'), JSON.stringify({ t: Date.now(), chat, type: msg.chat.type, verdict }) + '\n');
+    fs.appendFileSync(path.join(LOG_DIR, 'usage.jsonl'), JSON.stringify({ t: Date.now(), chat, type: msg.chat.type, verdict, mint }) + '\n');
   } catch { /* the log must never break a reply */ }
 }
 // One retry on a dropped connection (e.g. ECONNRESET), which otherwise loses a reply.
@@ -59,7 +59,9 @@ const T = {
     sim: (d, r, why) => `Gdybyś kupił ${d} s po starcie (0,5 SOL, sprzedaż przy +50% / −20% albo po 5 min): <b>${r}</b> (${why})`,
     simEarly: (d, age) => `Gdybyś kupił ${d} s po starcie: za wcześnie, moneta ma dopiero ${age} s`,
     simNow: (d, r, age) => `Gdybyś kupił ${d} s po starcie (0,5 SOL): na razie <b>${r}</b> (moneta ma ${age} s, wynik końcowy po 5 min)`,
-    why: { zysk: 'cel zysku', strata: 'limit straty', czas: 'po 5 min' },
+    why: { zysk: 'cel zysku', strata: 'limit straty', czas: 'po 5 min', grad: 'do przejścia na PumpSwap' },
+    simGrad: (d) => `Gdybyś kupił ${d} s po starcie: moneta była już na PumpSwap, symulacja tego nie obejmuje`,
+    simGradAll: 'Moneta od razu przeszła na PumpSwap, więc symulacja kupna jej nie obejmuje',
     none: 'Brak wyraźnych sygnałów ryzyka w danych z pierwszych minut.',
     buy: 'Wykres na Axiom',
     foot: 'Informacja, nie porada inwestycyjna.',
@@ -76,7 +78,9 @@ const T = {
     sim: (d, r, why) => `If you had bought ${d} s after launch (0.5 SOL, sell at +50% / −20% or after 5 min): <b>${r}</b> (${why})`,
     simEarly: (d, age) => `If you had bought ${d} s after launch: too early, the coin is only ${age} s old`,
     simNow: (d, r, age) => `If you had bought ${d} s after launch (0.5 SOL): so far <b>${r}</b> (coin is ${age} s old, final result after 5 min)`,
-    why: { zysk: 'take profit', strata: 'stop loss', czas: 'after 5 min' },
+    why: { zysk: 'take profit', strata: 'stop loss', czas: 'after 5 min', grad: 'until it moved to PumpSwap' },
+    simGrad: (d) => `If you had bought ${d} s after launch: the coin had already moved to PumpSwap, which the simulator does not cover`,
+    simGradAll: 'The coin moved to PumpSwap right at launch, so the buy simulator does not cover it',
     none: 'No clear risk signals in the first minutes of data.',
     buy: 'Chart on Axiom',
     foot: 'Information, not financial advice.',
@@ -101,7 +105,7 @@ function card(r, L) {
     ...(r.signals.length ? r.signals.map((s) => `${s.level === 'good' ? '✅' : s.level === 'info' ? 'ℹ️' : '⚠️'} ${esc(dec(s[L], L))}`) : [t.none]),
     ...(r.devBuySol == null ? [] : [t.devBuy(dec(r.devBuySol.toFixed(2), L))]),
     '',
-    ...r.sims.map((s) => (s.tooEarly ? t.simEarly(s.delaySec, r.ageSec) : s.pending && s.reason === 'czas' ? t.simNow(s.delaySec, pct(s.ret), r.ageSec) : t.sim(s.delaySec, pct(s.ret), t.why[s.reason]))),
+    ...(r.sims.length && r.sims.every((s) => s.gradBefore) ? [t.simGradAll] : r.sims.map((s) => (s.gradBefore ? t.simGrad(s.delaySec) : s.tooEarly ? t.simEarly(s.delaySec, r.ageSec) : s.pending && s.reason === 'czas' ? t.simNow(s.delaySec, pct(s.ret), r.ageSec) : t.sim(s.delaySec, pct(s.ret), t.why[s.reason])))),
     '',
     `<i>${esc(r.note[L])}</i>`,
     `<i>${t.foot}${showRef ? ' ' + t.ref : ''}</i>`,
@@ -143,7 +147,7 @@ async function checkCoin(chat, mint, L, replyTo) {
     let r = await scanMint(mint);
     // A coin launched seconds ago may not be indexed yet: try once more.
     if (r.error) { await new Promise((ok) => setTimeout(ok, 4000)); r = await scanMint(mint); }
-    logUse({ chat }, r.error ? 'notfound' : r.verdict);
+    logUse({ chat }, r.error ? 'notfound' : r.verdict, mint);
     const c = card(r, L);
     await tg('editMessageText', { chat_id: chat.id, message_id: wait.result.message_id, text: c.text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: c.reply_markup });
   } catch (e) {
