@@ -3,8 +3,8 @@
 **On-chain truth for memecoin traders.** Paste a pump.fun coin into Telegram and get, in seconds:
 
 - a **risk card**: serial-rugger networks traced through *who funded the creator's wallet*, the creator's
-  own launch record, coordinated buys in the creator's Jito bundle, professional sniper bots in the first
-  block, early creator sells;
+  own launch record, coordinated buys in the creator's Jito bundle and where those coins went (moved or sold),
+  professional sniper bots in the first block, early creator sells;
 - a **reality simulator**: what would have happened if you had bought 3 or 30 seconds after launch, computed
   from the coin's actual on-chain trades (price impact, fees, take-profit / stop-loss, reaction delay);
 - the context nobody shows: **82% of new pump.fun coins die within 5 minutes** (our data: 15,008 launches).
@@ -15,6 +15,21 @@ it for the sniper experiments behind our findings; the bot itself does not need 
 exists), and it is the base for the next feature: warnings at the moment a coin launches.
 
 **Try it:** [@TrenchTruthBot](https://t.me/TrenchTruthBot) on Telegram. Paste any pump.fun coin address.
+
+## Caught live: WIFCLAUDIA, 11 Oct 2026
+
+`GdDpqx7i7cbskew6cDNqP56ZbHe6aUYZfX3zSknvpump` launched at 01:12:16 UTC. The creator and 4 other wallets bought
+83.28 SOL in the launch's Jito bundle, about 79% of the supply, which completed the bonding curve at once.
+
+- **01:21 UTC:** a check in the bot returned **high risk** (bundle with ~79% of the supply, 5 buys in the first
+  block, 1 by a professional bot).
+- **01:22:31–01:23:00 UTC:** the PumpSwap pool fell from ~97 SOL to ~6 SOL. The price dropped from 6.0e-7 to
+  6.5e-9 SOL per token, **−99%** (measured from the pool's vault balances).
+
+The same night we added **bundle tracing**: the bot now follows the bundle wallets' coins one hop and reports
+how much they moved to other wallets and how much they have already sold. For WIFCLAUDIA it shows that the
+bundle wallets moved ~79% of the supply to 4 other wallets, and that the insiders have sold about all of it
+through them.
 
 > Status: hackathon build (Colosseum Crypto World's Fair, Oct 2026). Research and code were written during the
 > hackathon (Oct 5–12, 2026).
@@ -61,7 +76,7 @@ Solana leader ──shreds──▶ LocalShred / ShredStream proxy ──gRPC en
   pump.fun launches from instructions alone (no logs exist yet at shred time): creator, creator buy replayed on
   the curve, non-SOL quote mints, the creator-vault account of holder-reward coins.
 - `src/scan.mjs`: `scanMint(mint)`: launch, first 5 minutes of trades, creator's funder, launch history,
-  Jito bundle of the create, signals, verdict, `simulate()`.
+  Jito bundle of the create, bundle tracing (one hop: moved vs. sold), signals, verdict, `simulate()`.
 - `src/bot.mjs`: Telegram bot (Bot API over HTTPS, no dependencies). Works in DMs and groups.
 - `tools/`: launch recorder (websocket, arrival-timed), funder lookup, history builder, shred feed latency
   probe, decoder self-test on real transactions.

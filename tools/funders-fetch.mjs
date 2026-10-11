@@ -49,7 +49,7 @@ async function funderOf(w) {
     if (p === 4) return { w, nSigs: n, many: true };
   }
   if (!oldest) return { w, nSigs: 0 };
-  const tx = await rpc('getTransaction', [oldest.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }]);
+  const tx = await rpc('getTransaction', [oldest.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 1 }]);
   if (!tx) return { w, nSigs: n, err: 'tx' };
   const ixs = [...tx.transaction.message.instructions, ...(tx.meta.innerInstructions || []).flatMap((g) => g.instructions)];
   let funder = null, lamports = 0, method = null;

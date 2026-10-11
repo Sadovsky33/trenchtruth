@@ -31,7 +31,7 @@ const raws = [], expect = [];
 let other = 0;
 for (const s of sigs) {
   if (s.err) continue;
-  const tx = await rpc('getTransaction', [s.signature, { encoding: 'base64', maxSupportedTransactionVersion: 0 }]);
+  const tx = await rpc('getTransaction', [s.signature, { encoding: 'base64', maxSupportedTransactionVersion: 1 }]);
   if (!tx) continue;
   const logs = tx.meta.logMessages || [];
   const isCreate = logs.some((l) => l === 'Program log: Instruction: Create' || l === 'Program log: Instruction: CreateV2');
