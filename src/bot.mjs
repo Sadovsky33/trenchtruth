@@ -69,6 +69,8 @@ const T = {
     notFound: 'Nie znalazłem tej monety na pump.fun. Jeśli powstała przed chwilą, spróbuj ponownie za kilka sekund.',
     noAddr: 'Nie widzę tu adresu monety. Wklej sam adres z pump.fun (32–44 znaki, zwykle kończy się na „pump”).',
     err: 'Coś poszło nie tak przy sprawdzaniu. Spróbuj za chwilę.',
+    otherPad: (pl) => `Ta moneta nie powstała w programie pump.fun, tylko na ${pl} (pump.fun pokazuje też takie monety). Na razie sprawdzam tylko monety stworzone na pump.fun; zwykle ich adres kończy się na „pump”.`,
+    slow: 'Sprawdzanie trwa za długo. Sprawdzam tylko monety z pump.fun; jeśli to taka moneta, spróbuj ponownie za chwilę.',
     hello: 'Wklej adres monety z pump.fun, a powiem Ci, czy wygląda na oszustwo i co by było, gdybyś ją kupił.',
   },
   en: {
@@ -88,13 +90,15 @@ const T = {
     notFound: 'I could not find this coin on pump.fun. If it launched a moment ago, try again in a few seconds.',
     noAddr: 'I cannot see a coin address here. Paste just the pump.fun address (32–44 characters, usually ending in "pump").',
     err: 'Something went wrong while checking. Try again in a moment.',
+    otherPad: (pl) => `This coin was not created by the pump.fun program but on ${pl} (pump.fun's site lists such coins too). For now I only check coins created on pump.fun; their address usually ends in "pump".`,
+    slow: 'This check is taking too long. I only check pump.fun coins; if this is one, try again in a moment.',
     hello: 'Paste a pump.fun coin address and I will tell you if it looks like a scam and what would have happened if you had bought it.',
   },
 };
 
 function card(r, L) {
   const t = T[L];
-  if (r.error) return { text: t.notFound };
+  if (r.error) return { text: r.platform ? t.otherPad(r.platform) : t.notFound };
   // Never put a trading link under a high-risk warning.
   const showRef = AXIOM_REF && r.verdict !== 'high';
   const lines = [
@@ -144,15 +148,17 @@ async function checkCoin(chat, mint, L, replyTo) {
   let wait;
   try {
     wait = await tg('sendMessage', { chat_id: chat.id, text: T[L].scanning, ...(replyTo ? { reply_to_message_id: replyTo } : {}) });
-    let r = await scanMint(mint);
+    // Never leave the user waiting: a check that takes over a minute is answered with a short message.
+    const timed = (ms) => Promise.race([scanMint(mint), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
+    let r = await timed(60_000);
     // A coin launched seconds ago may not be indexed yet: try once more.
-    if (r.error) { await new Promise((ok) => setTimeout(ok, 4000)); r = await scanMint(mint); }
+    if (r.error && !r.notPump) { await new Promise((ok) => setTimeout(ok, 4000)); r = await timed(30_000); }
     logUse({ chat }, r.error ? 'notfound' : r.verdict, mint);
     const c = card(r, L);
     await tg('editMessageText', { chat_id: chat.id, message_id: wait.result.message_id, text: c.text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: c.reply_markup });
   } catch (e) {
     console.error(new Date().toISOString(), 'błąd', String(e).slice(0, 200));
-    if (wait?.result) await tg('editMessageText', { chat_id: chat.id, message_id: wait.result.message_id, text: T[L].err }).catch(() => {});
+    if (wait?.result) await tg('editMessageText', { chat_id: chat.id, message_id: wait.result.message_id, text: String(e).includes('timeout') ? T[L].slow : T[L].err }).catch(() => {});
   } finally { busy.delete(key); }
 }
 

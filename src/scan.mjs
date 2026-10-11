@@ -91,11 +91,19 @@ async function funderOf(w) {
 async function launchData(mint, minutes = 5) {
   try {
     const fast = await launchDataFast(mint, minutes);
+    if (fast?.notPump) return { notPump: true, platform: fast.platform }; // not created on pump.fun: no point digging further
     if (fast) return fast;
   } catch (e) { console.error(new Date().toISOString(), 'fast path failed, falling back', String(e).slice(0, 120)); }
   return launchDataSlow(mint, minutes);
 }
 
+// Other launchpads whose coins pump.fun's site also lists; we do not decode them yet.
+const LAUNCHPADS = { LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj: 'Raydium LaunchLab', dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN: 'Meteora DBC' };
+function platformOf(tx) {
+  const keys = tx?.transaction?.message?.accountKeys || [];
+  for (const ix of tx?.transaction?.message?.instructions || []) { const id = keys[ix.programIdIndex]; if (LAUNCHPADS[id]) return LAUNCHPADS[id]; }
+  return null;
+}
 async function launchDataFast(mint, minutes) {
   const span = Math.round((minutes * 60) / 0.4);
   const trades = [];
@@ -115,6 +123,8 @@ async function launchDataFast(mint, minutes) {
         if (e.name === 'TradeEvent' && e.data.mint === mint) trades.push({ sig, slot: tx.slot, bt: tx.blockTime, buy: e.data.is_buy, sol: Number(e.data.sol_amount), tok: Number(e.data.token_amount), u: e.data.user, vS: Number(e.data.virtual_sol_reserves), vT: Number(e.data.virtual_token_reserves) });
       }
     }
+    // A pump.fun coin's history starts with its create: if the first page has none, it is some other token.
+    if (p === 0 && !ce && data.some((tx) => tx?.meta && !tx.meta.err)) return { notPump: true, platform: platformOf(data.find((tx) => tx?.meta && !tx.meta.err)) };
     paginationToken = res?.paginationToken;
     if (done || !paginationToken || !data.length) break;
   }
@@ -280,6 +290,7 @@ export function simulate(data, { delaySec = 3, size = 0.5, tp = 0.5, sl = 0.2, h
 export async function scanMint(mint) {
   const data = await launchData(mint);
   if (!data) return { mint, error: 'Nie znaleziono utworzenia monety na pump.fun.' };
+  if (data.notPump) return { mint, error: 'Moneta nie powstała na pump.fun.', notPump: true, platform: data.platform || null };
   const { ce, trades } = data;
   const creator = ce.user;
   // Coins quoted in another token (e.g. a tokenized stock) report 0 SOL in trades: skip every SOL-based check.
