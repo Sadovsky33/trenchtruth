@@ -9,8 +9,10 @@
   from the coin's actual on-chain trades (price impact, fees, take-profit / stop-loss, reaction delay);
 - the context nobody shows: **82% of new pump.fun coins die within 5 minutes** (our data: 15,008 launches).
 
-Built on a real-time Solana shred decoder (with support for the new **v1 transaction format, SIMD-0385**) that
-sees new launches **~170 ms before standard RPC websockets**.
+The repo also includes our open-source, dependency-free Solana shred decoder (with support for the new **v1
+transaction format, SIMD-0385**), which sees new launches **~170 ms before standard RPC websockets**. We built
+it for the sniper experiments behind our findings; the bot itself does not need it (a pasted coin already
+exists), and it is the base for the next feature: warnings at the moment a coin launches.
 
 **Try it:** [@TrenchTruthBot](https://t.me/TrenchTruthBot) on Telegram. Paste any pump.fun coin address.
 
@@ -38,17 +40,20 @@ Retail traders deserve to see this before they click buy. TrenchTruth shows it, 
 ## How it works
 
 ```
-Solana leader ──shreds──▶ LocalShred / ShredStream proxy ──gRPC entries──▶ src/shreds.mjs
-                                                                   │  (decode Vec<Entry>, legacy/v0/v1 txs,
-                                                                   │   pump.fun create + creator buy, quote mint,
-                                                                   │   holder-reward creator vault)
-                                                                   ▼
-           data/launches.jsonl ◀── tools/record-launches + funders-fetch + build-db  (launch history)
-                                                                   │
+The bot (what runs today):
 paste address in Telegram ──▶ src/bot.mjs ──▶ src/scan.mjs ──▶ Helius RPC + Jito bundle API
+                                                  │  + data/launches.jsonl (launch history, funders, outcomes)
                                                   │  risk signals + simulate()
                                                   ▼
                                         risk card (EN/PL) + "what if you bought"
+
+The launch history (built from our recordings):
+Helius websocket ──▶ tools/record-launches ──▶ tools/funders-fetch ──▶ tools/build-db ──▶ data/launches.jsonl
+
+The shred decoder (research and next step, not used by the bot yet):
+Solana leader ──shreds──▶ LocalShred / ShredStream proxy ──gRPC entries──▶ src/shreds.mjs
+                           (decode Vec<Entry>, legacy/v0/v1 txs, pump.fun create + creator buy,
+                            quote mint, holder-reward creator vault)
 ```
 
 - `src/shreds.mjs`: decodes shred-stream entries into transactions, including **Solana tx v1** (version byte

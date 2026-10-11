@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="TrenchTruth: a history check for Solana memecoins. Paste a pump.fun coin into Telegram and see who is really behind it.">
+<title>TrenchTruth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wght@300;400;500;600&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: clean monochrome product page in the spirit of a premium trading-bot site. White hero with a realistic
+   iPhone running the bot, a strip of real launches, a feature list that darkens on scroll, a dark "how it works"
+   with a sticky phone that changes screen per step, the money-trail canvas, a comparison, real checks, FAQ.
+   Colour only where it means something: risk red, good blue. One deliberate look in every theme. */
+:root {
+  --white: #FFFFFF; --paper: #F5F5F5; --ink: #232323; --text: #3A3A3A; --grey: #8D8D8D; --grey-2: #666666;
+  --rest: #A6A6A6; --line: #E6E6E6; --dark: #141414; --dark-2: #202020; --dark-line: #2F2F2F; --on-dark: #F2F2F2; --on-dark-2: #A3A3A3;
+  --risk: #E5484D; --risk-ink: #C42F35; --warn: #E8A33D; --good: #4C8DF6; --good-ink: #2F6FD6;
+  --tg-bg: #0E1621; --tg-in: #182533; --tg-out: #2B5278; --tg-bar: #17212B; --tg-blue: #6AB2F2;
+  --display: 'Saira', 'Segoe UI', Arial, sans-serif;
+  --body: 'Manrope', 'Segoe UI', Arial, sans-serif;
+  --mono: 'JetBrains Mono', 'Courier New', monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { background: var(--white); color: var(--text); font: 16px/1.65 var(--body); margin: 0; overflow-x: clip; -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--good); outline-offset: 3px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 24px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; text-transform: uppercase; }
+p { margin: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Banner + sticky header */
+.banner { background: var(--dark); color: rgba(255,255,255,.72); }
+.banner .wrap { display: flex; justify-content: center; align-items: center; gap: 14px; padding-block: 10px; flex-wrap: wrap; }
+.banner p { font: 400 12.5px/1.4 var(--display); letter-spacing: 1.4px; text-transform: uppercase; text-align: center; }
+.banner i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #5BD18B; margin-right: 8px; vertical-align: 1px; box-shadow: 0 0 0 4px rgba(91,209,139,.15); }
+header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: rgba(255,255,255,.82); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); border-bottom: 1px solid transparent; transition: border-color .3s, background-color .3s; }
+header.scrolled { border-bottom-color: var(--line); }
+header.on-dark { background: rgba(20,20,20,.78); border-bottom-color: var(--dark-line); }
+header.on-dark .logo { color: var(--on-dark); }
+header.on-dark .logo .word span { color: var(--on-dark-2); }
+header.on-dark .logo rect { fill: #F2F2F2; }
+header.on-dark .logo path { stroke: #1C1C1C; }
+header.on-dark .logo circle { fill: #1C1C1C; }
+header.on-dark nav a:not(.btn) { color: var(--on-dark-2); }
+header.on-dark nav a:not(.btn):hover { color: var(--on-dark); }
+header.on-dark .btn.dark { background: linear-gradient(180deg, #FAFAFA, #E6E6E6); color: var(--ink); border-color: #DADADA; }
+header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 16px; }
+.logo { display: flex; align-items: center; gap: 11px; text-decoration: none; color: var(--ink); }
+.logo .word { font: 600 19px/1 var(--display); letter-spacing: 2.4px; }
+.logo .word span { font-weight: 300; color: var(--grey-2); }
+nav { display: flex; gap: 30px; align-items: center; }
+nav a { text-decoration: none; font: 400 13.5px/1 var(--display); letter-spacing: 1.3px; text-transform: uppercase; color: var(--grey-2); transition: color .2s; }
+nav a:hover { color: var(--ink); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; font: 500 14px/1 var(--display); letter-spacing: 1.5px; text-transform: uppercase; text-decoration: none; padding: 16px 24px; border-radius: 10px; border: 1px solid #D2D2D2; background: linear-gradient(180deg, #FAFAFA, #ECECEC); color: var(--ink); box-shadow: 0 1px 0 #fff inset, 0 8px 20px rgba(0,0,0,.10); transition: transform .15s, box-shadow .15s; cursor: pointer; white-space: nowrap; }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 1px 0 #fff inset, 0 12px 26px rgba(0,0,0,.14); }
+.btn.dark { background: linear-gradient(180deg, #2E2E2E, #161616); color: var(--white); border-color: #111; box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 10px 24px rgba(0,0,0,.22); }
+.btn.line { background: transparent; box-shadow: none; }
+.btn.small { padding: 11px 16px; font-size: 12.5px; border-radius: 8px; }
+.btn svg { flex: none; }
+
+/* Hero */
+.hero { position: relative; overflow: hidden; }
+.hero::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(0,0,0,.07) 1px, transparent 1.2px); background-size: 22px 22px; -webkit-mask-image: radial-gradient(ellipse at 70% 40%, #000 0%, transparent 65%); mask-image: radial-gradient(ellipse at 70% 40%, #000 0%, transparent 65%); pointer-events: none; }
+.hero .wrap { position: relative; display: grid; grid-template-columns: 1.08fr .92fr; gap: 48px; align-items: center; padding-block: 56px 72px; }
+.hero .wrap > * { min-width: 0; }
+.chip { display: inline-flex; align-items: center; gap: 10px; font: 400 12.5px/1 var(--mono); letter-spacing: .5px; color: var(--grey-2); border: 1px solid var(--line); background: var(--white); padding: 8px 12px 8px 10px; border-radius: 999px; }
+.chip b { font: 500 11px/1 var(--display); letter-spacing: 1px; text-transform: uppercase; background: var(--ink); color: var(--white); padding: 5px 7px; border-radius: 999px; }
+.hero h1 { font-size: clamp(38px, 5.6vw, 76px); line-height: 1.02; color: var(--ink); letter-spacing: -0.6px; margin-top: 26px; }
+.hero h1 .soft { color: var(--rest); }
+.hero .sub { font-size: 18px; color: var(--grey-2); max-width: 31em; margin-top: 26px; }
+.hero .ctas { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 34px; }
+.trust { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 30px; font: 400 13px/1.3 var(--body); color: var(--grey); }
+.trust span { display: inline-flex; align-items: center; gap: 8px; }
+.stage { display: flex; flex-direction: column; align-items: center; gap: 22px; perspective: 1400px; }
+.tilt { transform-style: preserve-3d; transition: transform .25s ease-out; will-change: transform; }
+.switch { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.switch button { font: 400 12px/1 var(--display); letter-spacing: 1px; text-transform: uppercase; padding: 9px 12px; border-radius: 999px; background: var(--white); color: var(--grey); border: 1px solid var(--line); cursor: pointer; transition: all .2s; }
+.switch button[aria-pressed="true"] { color: var(--white); background: var(--ink); border-color: var(--ink); }
+
+/* Realistic iPhone */
+.iphone { position: relative; width: min(326px, 82vw); aspect-ratio: 9 / 19.4; border-radius: 58px; padding: 3px; background: linear-gradient(145deg, #A6A8AD 0%, #4A4C51 18%, #8F9297 36%, #34363A 58%, #7E8186 78%, #3B3D42 100%); box-shadow: 0 50px 90px -20px rgba(0,0,0,.35), 0 30px 40px -30px rgba(0,0,0,.5), 0 0 0 1px rgba(0,0,0,.25); }
+.iphone .side { position: absolute; width: 4px; border-radius: 2px; background: linear-gradient(90deg, #5B5D62, #9A9CA1, #4B4D52); }
+.iphone .side.action { left: -3px; top: 17%; height: 4.5%; }
+.iphone .side.up { left: -3px; top: 25%; height: 8.5%; }
+.iphone .side.down { left: -3px; top: 35.5%; height: 8.5%; }
+.iphone .side.power { right: -3px; top: 28%; height: 13%; }
+.bezel { position: relative; height: 100%; border-radius: 55px; background: #050505; padding: 10px; box-shadow: 0 0 0 1.5px #1A1A1A inset; }
+.screen { position: relative; height: 100%; border-radius: 46px; overflow: hidden; background: var(--tg-bg); display: flex; flex-direction: column; color: #EAF0F5; font-family: -apple-system, 'SF Pro Text', var(--body); }
+.island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 31%; height: 30px; background: #000; border-radius: 20px; z-index: 5; }
+.island::after { content: ""; position: absolute; right: 14%; top: 50%; width: 9px; height: 9px; transform: translateY(-50%); border-radius: 50%; background: radial-gradient(circle at 35% 35%, #2B3A5A, #0A0D14 60%); }
+.status { display: flex; justify-content: space-between; align-items: center; padding: 16px 28px 0 34px; height: 50px; font: 600 15px/1 -apple-system, 'SF Pro Text', var(--body); color: #fff; background: var(--tg-bar); }
+.status .icons { display: flex; gap: 6px; align-items: center; }
+.tg-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 6px 12px 10px; background: var(--tg-bar); border-bottom: 1px solid rgba(0,0,0,.35); }
+.tg-back { display: flex; align-items: center; gap: 2px; color: var(--tg-blue); font-size: 15px; }
+.tg-who { text-align: center; line-height: 1.2; }
+.tg-who b { display: block; font-size: 15px; font-weight: 600; color: #fff; }
+.tg-who small { font-size: 12px; color: #7F91A4; }
+.tg-ava { width: 34px; height: 34px; border-radius: 50%; background: #F1F1F1; display: grid; place-items: center; }
+.chat { position: relative; flex: 1; min-height: 0; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; justify-content: flex-end; font-size: 12.6px; line-height: 1.42; overflow: hidden;
+  background-color: var(--tg-bg);
+  background-image: radial-gradient(rgba(106,178,242,.06) 1px, transparent 1.4px), linear-gradient(160deg, rgba(43,82,120,.25), rgba(14,22,33,0) 55%);
+  background-size: 16px 16px, 100% 100%; }
+.msg { max-width: 90%; padding: 7px 10px 6px; border-radius: 15px; position: relative; animation: pop .28s ease-out both; }
+@keyframes pop { from { transform: translateY(6px) scale(.98); opacity: .2; } }
+.msg.out { align-self: flex-end; background: var(--tg-out); border-bottom-right-radius: 5px; font-family: 'JetBrains Mono', monospace; font-size: 10.6px; word-break: break-all; }
+.msg.in { align-self: flex-start; background: var(--tg-in); border-bottom-left-radius: 5px; display: flex; flex-direction: column; gap: 6px; }
+.meta { display: flex; justify-content: flex-end; align-items: center; gap: 3px; font: 400 10.5px/1 -apple-system, var(--body); color: rgba(234,240,245,.55); margin-top: 1px; }
+.msg.out .meta { color: rgba(190,220,250,.75); font-family: -apple-system, var(--body); }
+.msg .title { font-weight: 600; font-size: 13px; color: #fff; }
+.verdict { font: 600 10.5px/1 var(--body); letter-spacing: .8px; text-transform: uppercase; padding: 4px 7px; border-radius: 5px; width: fit-content; }
+.verdict.high { background: rgba(229,72,77,.2); color: #FF8E91; }
+.verdict.medium { background: rgba(232,163,61,.2); color: #F4C27C; }
+.sig { display: grid; grid-template-columns: 10px 1fr; gap: 6px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 6.5px; }
+.dot.high { background: var(--risk); } .dot.warn { background: var(--warn); } .dot.good { background: var(--good); }
+.simline { border-top: 1px solid #263649; padding-top: 6px; font: 400 10.6px/1.45 'JetBrains Mono', monospace; color: #9FB0C1; }
+.simline b { font-weight: 500; color: #fff; }
+.kbd { align-self: flex-start; width: 90%; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; animation: pop .28s ease-out both; }
+.kbd span { background: rgba(24,37,51,.85); border-radius: 8px; padding: 7px 4px; text-align: center; font-size: 11.5px; font-weight: 500; color: #fff; }
+.typing { align-self: flex-start; background: var(--tg-in); border-radius: 15px; border-bottom-left-radius: 5px; padding: 10px 12px; display: flex; gap: 4px; }
+.typing i { width: 6px; height: 6px; border-radius: 50%; background: #7F91A4; animation: bounce 1s infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-3px); opacity: 1; } }
+.checklist { display: flex; flex-direction: column; gap: 5px; }
+.checklist div { display: flex; gap: 7px; align-items: center; color: #C9D5E1; }
+.checklist .tick { width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; background: rgba(91,209,139,.18); color: #5BD18B; flex: none; font-size: 9px; }
+.tg-input { display: flex; align-items: center; gap: 10px; padding: 8px 12px 26px; background: var(--tg-bar); color: #6C7E90; font-size: 13.5px; }
+.tg-input .field { flex: 1; min-width: 0; border-radius: 18px; background: #0F1A24; border: 1px solid #22303D; padding: 7px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tg-input .field.typed { color: #EAF0F5; font-family: 'JetBrains Mono', monospace; font-size: 10.6px; }
+.caret { display: inline-block; width: 1.5px; height: 13px; background: var(--tg-blue); vertical-align: -2px; margin-left: 1px; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.home { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 36%; height: 5px; border-radius: 3px; background: rgba(255,255,255,.85); z-index: 4; }
+.glare { position: absolute; inset: 0; border-radius: 46px; background: linear-gradient(118deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,.03) 22%, transparent 38%); pointer-events: none; z-index: 6; }
+
+/* Real-launch strip */
+.strip { border-block: 1px solid var(--line); background: var(--white); display: grid; grid-template-columns: auto 1fr; align-items: stretch; }
+.strip-label { padding: 18px 24px; border-right: 1px solid var(--line); display: flex; flex-direction: column; justify-content: center; gap: 4px; max-width: 300px; }
+.strip-label b { font: 500 13px/1.2 var(--display); letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink); }
+.strip-label span { font: 400 12px/1.4 var(--mono); color: var(--grey); }
+.strip-run { overflow: hidden; display: flex; align-items: center; -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); min-width: 0; }
+.strip-track { display: flex; gap: 10px; flex: none; padding-block: 16px; animation: run 70s linear infinite; }
+.strip-run:hover .strip-track { animation-play-state: paused; }
+@keyframes run { to { transform: translateX(-50%); } }
+.launch { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; white-space: nowrap; font: 400 12.5px/1 var(--mono); color: var(--text); background: var(--white); }
+.launch time { color: var(--grey); }
+.launch .st { display: inline-flex; align-items: center; gap: 6px; font: 500 11px/1 var(--display); letter-spacing: 1px; text-transform: uppercase; }
+.launch .st.dead { color: var(--risk-ink); } .launch .st.alive { color: var(--good-ink); }
+.launch .st::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.launch .flag { font: 500 10.5px/1 var(--display); letter-spacing: .8px; text-transform: uppercase; color: var(--white); background: var(--ink); padding: 4px 6px; border-radius: 4px; }
+
+/* Feature list */
+.features { padding-block: 120px 100px; }
+.features .wrap { display: grid; grid-template-columns: 1fr auto; gap: 40px; align-items: end; }
+.features ul { list-style: none; padding: 0; margin: 0; }
+.features li { font: 400 clamp(28px, 4.6vw, 62px)/1.1 var(--display); text-transform: uppercase; color: var(--rest); transition: color .7s; }
+.features li.on { color: var(--ink); }
+.features li span { color: var(--line); }
+.features aside { max-width: 260px; font-size: 14.5px; color: var(--grey); border-top: 1px solid var(--line); padding-top: 16px; }
+
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); }
+.stat { padding: 30px 24px 40px 0; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.stat + .stat { padding-left: 24px; border-left: 1px solid var(--line); }
+.stat .n { font: 300 clamp(40px, 4.8vw, 66px)/1 var(--display); color: var(--ink); letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+.stat p { color: var(--grey); font-size: 14.5px; line-height: 1.5; }
+
+/* Dark sections */
+.dark { position: relative; background: radial-gradient(700px circle at var(--mx, 50%) var(--my, 30%), rgba(255,255,255,.05), transparent 45%), linear-gradient(180deg, var(--dark-2), var(--dark)); color: var(--on-dark); }
+.sec { padding-block: 130px; }
+.eyebrow { font: 400 12.5px/1 var(--mono); letter-spacing: 1.6px; text-transform: uppercase; color: var(--grey); display: flex; align-items: center; gap: 12px; }
+.eyebrow::before { content: ""; width: 28px; height: 1px; background: currentColor; }
+.dark .eyebrow { color: var(--on-dark-2); }
+.sec h2 { font-size: clamp(34px, 4.6vw, 60px); line-height: 1.04; margin-top: 18px; color: var(--ink); }
+.dark h2 { color: var(--on-dark); }
+.sec .intro { color: var(--grey-2); max-width: 35em; margin-top: 22px; font-size: 17px; }
+.dark .intro { color: var(--on-dark-2); }
+
+/* How it works with sticky phone */
+.how-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 70px; margin-top: 30px; }
+.how-grid > * { min-width: 0; }
+.how-phone { position: sticky; top: 90px; height: fit-content; display: flex; justify-content: center; padding-top: 30px; }
+.how-phone .iphone { width: min(280px, 80vw); }
+.how-steps { display: flex; flex-direction: column; }
+.how-step { min-height: 72vh; display: flex; flex-direction: column; justify-content: center; gap: 16px; border-left: 1px solid var(--dark-line); padding-left: 36px; transition: border-color .4s; }
+.how-step .no { font: 400 13px/1 var(--mono); color: var(--on-dark-2); }
+.how-step h3 { font-size: clamp(28px, 3.2vw, 42px); line-height: 1.05; color: #5E5E5E; transition: color .4s; }
+.how-step p { color: var(--on-dark-2); max-width: 30em; }
+.how-step.active { border-left-color: var(--on-dark); }
+.how-step.active h3 { color: var(--on-dark); }
+.how-step ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; color: var(--on-dark-2); }
+.how-step li { display: flex; gap: 10px; align-items: baseline; }
+.how-step li::before { content: ""; width: 14px; height: 1px; background: var(--on-dark-2); flex: none; transform: translateY(-4px); }
+
+/* Money trail */
+.statement { text-align: center; }
+.statement .eyebrow { justify-content: center; }
+.statement h2 { max-width: 15em; margin-inline: auto; }
+.statement .intro { margin-inline: auto; }
+.net { display: grid; grid-template-columns: 1.05fr .95fr; gap: 60px; align-items: center; margin-top: 76px; text-align: left; }
+.net > * { min-width: 0; }
+.canvas-box { position: relative; aspect-ratio: 1 / 1; max-width: 100%; border-radius: 20px; background: radial-gradient(closest-side, #262626, #141414); border: 1px solid var(--dark-line); overflow: hidden; }
+.canvas-box canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cap { position: absolute; left: 18px; bottom: 16px; right: 18px; font: 400 11.5px/1.4 var(--mono); color: var(--on-dark-2); }
+.vs { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--dark-line); }
+.vs > div { padding: 26px 20px 26px 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.vs > div + div { padding-left: 20px; border-left: 1px solid var(--dark-line); }
+.vs .n { font: 300 clamp(46px, 5.2vw, 72px)/1 var(--display); color: var(--on-dark); }
+.vs .bad .n { color: #FF7C80; }
+.vs p { color: var(--on-dark-2); font-size: 14.5px; }
+.net-copy { display: flex; flex-direction: column; gap: 22px; }
+.net-copy > p { color: var(--on-dark-2); }
+.net-copy > p b { color: var(--on-dark); font-weight: 500; }
+.nets { border-top: 1px solid var(--dark-line); }
+.nets div { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--dark-line); font-size: 14.5px; color: var(--on-dark-2); }
+.nets b { font: 400 14px/1.4 var(--mono); color: var(--on-dark); white-space: nowrap; }
+
+/* Comparison */
+.compare { margin-top: 56px; overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; }
+.compare table { width: 100%; min-width: 620px; border-collapse: collapse; }
+.compare th, .compare td { padding: 18px 22px; border-bottom: 1px solid var(--line); text-align: left; font-size: 15.5px; }
+.compare tr:last-child td { border-bottom: none; }
+.compare thead th { font: 400 13px/1.2 var(--display); letter-spacing: 1.2px; text-transform: uppercase; color: var(--grey); background: var(--paper); }
+.compare thead th.us { color: var(--ink); }
+.compare td.c { text-align: center; width: 190px; }
+.compare td.us { background: #FAFAFA; }
+.yes, .no { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; }
+.yes { background: var(--ink); color: var(--white); }
+.no { border: 1px solid var(--line); color: var(--rest); }
+
+/* Real checks */
+.light { background: var(--paper); }
+.checks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 56px; }
+.check { background: var(--white); border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 16px; min-width: 0; box-shadow: 0 1px 2px rgba(0,0,0,.04); border: 1px solid #EDEDED; transition: transform .25s, box-shadow .25s; }
+.check:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(0,0,0,.08); }
+.check-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.check-top b { font: 400 24px/1 var(--display); text-transform: uppercase; color: var(--ink); }
+.pill { font: 500 11px/1 var(--display); letter-spacing: 1px; text-transform: uppercase; padding: 6px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.high { color: var(--risk-ink); background: #FDECEC; }
+.pill.medium { color: #8A5A00; background: #FFF2D9; }
+.mint { font: 400 11.5px/1.4 var(--mono); color: var(--grey); word-break: break-all; }
+.check ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 9px; flex: 1; }
+.check li { display: grid; grid-template-columns: 10px 1fr; gap: 10px; font-size: 14.5px; color: var(--grey-2); line-height: 1.5; }
+.check li .dot { margin-top: 8px; }
+.results { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+.results div { padding: 16px 14px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.results div + div { padding-left: 14px; border-left: 1px solid var(--line); }
+.results span { font: 400 11.5px/1.2 var(--mono); color: var(--grey); text-transform: uppercase; letter-spacing: 1px; }
+.results b { font: 300 clamp(30px, 3vw, 40px)/1 var(--display); color: var(--ink); font-variant-numeric: tabular-nums; }
+.results b.neg { color: var(--risk-ink); } .results b.pos { color: var(--good-ink); }
+
+/* Platforms + built on */
+.plats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 56px; border-top: 1px solid var(--line); }
+.plat { padding: 30px 28px 0 0; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.plat + .plat { padding-left: 28px; border-left: 1px solid var(--line); }
+.state { font: 400 12px/1 var(--mono); letter-spacing: 1.2px; text-transform: uppercase; color: var(--grey); display: inline-flex; align-items: center; gap: 8px; }
+.state.live { color: #1E8A4C; }
+.state.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.plat h3 { font-size: 26px; line-height: 1.1; color: var(--ink); }
+.plat p { color: var(--grey-2); font-size: 15px; }
+.built { display: flex; align-items: center; gap: 16px 44px; flex-wrap: wrap; margin-top: 80px; padding-top: 28px; border-top: 1px solid var(--line); }
+.built p { font: 400 12px/1 var(--mono); letter-spacing: 1.4px; text-transform: uppercase; color: var(--grey); }
+.built span { font: 500 18px/1 var(--display); letter-spacing: 2px; text-transform: uppercase; color: #9A9A9A; }
+
+/* FAQ */
+.faq-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: 60px; }
+.faq-grid > * { min-width: 0; }
+.faq { border-top: 1px solid var(--line); }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; gap: 18px; align-items: center; padding: 24px 0; font: 400 clamp(17px, 1.8vw, 21px)/1.3 var(--display); text-transform: uppercase; color: var(--ink); }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font: 300 28px/1 var(--display); color: var(--grey); flex: none; transition: transform .25s; }
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq details p { color: var(--grey-2); padding-bottom: 24px; max-width: 44em; }
+
+/* Final + footer */
+.final { text-align: center; overflow: hidden; }
+.final h2 { font-size: clamp(44px, 8vw, 116px); line-height: .98; }
+.final h2 span { color: #5A5A5A; }
+.final .ctas { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; margin-top: 44px; }
+.final .btn.line { color: var(--on-dark); border-color: var(--dark-line); }
+footer { background: var(--dark); color: var(--on-dark-2); border-top: 1px solid var(--dark-line); }
+.foot { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 32px; padding-block: 56px 36px; }
+.foot > * { min-width: 0; }
+.foot .logo { color: var(--on-dark); }
+.foot .logo .word span { color: var(--on-dark-2); }
+.foot p { font-size: 14px; margin-top: 14px; max-width: 26em; }
+.foot h4 { margin: 0 0 14px; font: 400 12px/1 var(--mono); letter-spacing: 1.4px; text-transform: uppercase; color: #6E6E6E; }
+.foot ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 9px; font-size: 14.5px; }
+.foot a { text-decoration: none; color: var(--on-dark); }
+.foot a:hover { text-decoration: underline; }
+.foot small { color: #6E6E6E; }
+.legal { border-top: 1px solid var(--dark-line); padding-block: 22px 30px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #6E6E6E; }
+
+@media (max-width: 1000px) {
+  nav a.navlink { display: none; }
+  .hero .wrap, .net, .faq-grid, .how-grid { grid-template-columns: 1fr; }
+  .hero .wrap { padding-block: 40px 60px; }
+  .how-phone { display: none; }
+  .how-step { min-height: 0; padding-block: 28px; border-left-color: var(--on-dark-2); }
+  .how-step h3 { color: var(--on-dark); }
+  .features .wrap { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat:nth-child(3) { padding-left: 0; border-left: none; }
+  .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .checks, .plats { grid-template-columns: 1fr; }
+  .plat + .plat { padding-left: 0; border-left: none; border-top: 1px solid var(--line); }
+  .plat { padding-bottom: 26px; }
+  .foot { grid-template-columns: 1fr 1fr; }
+  .strip { grid-template-columns: 1fr; }
+  .strip-label { max-width: none; border-right: none; border-bottom: 1px solid var(--line); }
+}
+@media (max-width: 520px) {
+  .wrap { padding-inline: 16px; }
+  .strip-label { padding-inline: 16px; }
+  .sec, .features { padding-block: 86px; }
+  .stats, .vs, .results { grid-template-columns: 1fr; }
+  .stat + .stat, .vs > div + div, .results div + div { padding-left: 0; border-left: none; border-top: 1px solid var(--line); }
+  .vs > div + div { border-top-color: var(--dark-line); }
+  .foot { grid-template-columns: 1fr; }
+  .trust { gap: 12px 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .features li { transition: none; color: var(--ink); }
+  .strip-track, .caret, .typing i, .msg, .kbd { animation: none; }
+  .tilt, .btn, .check { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="banner"><div class="wrap"><p><i></i>Built for the Colosseum Crypto World's Fair 2026 · open source · free for traders</p></div></div>
+
+<header id="hdr">
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="TrenchTruth home">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" fill="#1C1C1C"/><path d="M6 11.5h5.2v5.2h3.4v6.6h4.8v-6.6h3.4v-5.2H28" fill="none" stroke="#F2F2F2" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="17" cy="11.6" r="2.4" fill="#F2F2F2"/></svg>
+      <span class="word">TRENCH<span>TRUTH</span></span>
+    </a>
+    <nav>
+      <a class="navlink" href="#how">How it works</a>
+      <a class="navlink" href="#money">Money trail</a>
+      <a class="navlink" href="#checks">Real checks</a>
+      <a class="navlink" href="#faq">FAQ</a>
+      <a class="btn small dark bot-link" href="https://t.me/TrenchTruthBot" target="_blank" rel="noopener">Open bot</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <span class="chip"><b>New</b>Risk checks for pump.fun coins on Solana</span>
+        <h1>Know who is behind a memecoin <span class="soft">before you buy it.</span></h1>
+        <p class="sub">Paste a coin into Telegram. In a few seconds you see who funded the creator, what happened to everything they launched before, who sniped the first block, and what a buyer 3 or 30 seconds in actually got.</p>
+        <div class="ctas">
+          <a class="btn dark bot-link" href="https://t.me/TrenchTruthBot" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.9 4.3 18.6 19.9c-.2 1.1-.9 1.4-1.8.9l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1 9.2-8.3c.4-.4-.1-.6-.6-.2L6 13.7l-4.9-1.5c-1.1-.3-1.1-1.1.2-1.6L20.4 3.2c.9-.3 1.7.2 1.5 1.1Z"/></svg>Check a coin</a>
+          <a class="btn" href="#how">How it works</a>
+        </div>
+        <div class="trust" id="bot-status">
+          <span><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z"/></svg>Never asks for keys or funds</span>
+          <span><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2"/></svg>Answer in seconds</span>
+          <span><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M4 5h16M4 12h16M4 19h10"/></svg>English and Polish</span>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="tilt" id="tilt"><div id="phone-hero"><div class="iphone"><span class="side action"></span><span class="side up"></span><span class="side down"></span><span class="side power"></span>
+    <div class="bezel"><div class="screen"><div class="island"></div><div class="status"><span>9:41</span><span class="icons"><svg width="17" height="11" viewBox="0 0 17 11" fill="#fff" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.6" y="5" width="3" height="6" rx="1"/><rect x="9.2" y="2.6" width="3" height="8.4" rx="1"/><rect x="13.8" y="0" width="3" height="11" rx="1"/></svg><svg width="15" height="11" viewBox="0 0 15 11" fill="#fff" aria-hidden="true"><path d="M7.5 2.2c2.2 0 4.2.8 5.7 2.2l1.1-1.2A9.9 9.9 0 0 0 7.5.5 9.9 9.9 0 0 0 .7 3.2l1.1 1.2a8.2 8.2 0 0 1 5.7-2.2Zm0 3.3c1.3 0 2.5.5 3.4 1.3l1.1-1.2a6.6 6.6 0 0 0-9 0l1.1 1.2c.9-.8 2.1-1.3 3.4-1.3Zm0 3.2c.5 0 .9.2 1.2.5L7.5 10.6 6.3 9.2c.3-.3.7-.5 1.2-.5Z"/></svg><svg width="27" height="12" viewBox="0 0 27 12" aria-hidden="true"><rect x=".5" y=".5" width="22" height="11" rx="3.5" fill="none" stroke="#fff" opacity=".45"/><rect x="2" y="2" width="19" height="8" rx="2" fill="#fff"/><path d="M24 4v4c.8-.3 1.5-1.1 1.5-2S24.8 4.3 24 4Z" fill="#fff" opacity=".5"/></svg></span></div>
+      <div class="tg-head"><span class="tg-back"><svg width="10" height="17" viewBox="0 0 10 17" aria-hidden="true"><path d="M8.5 1.5 2 8.5l6.5 7" fill="none" stroke="#6AB2F2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Chats</span>
+        <div class="tg-who"><b>TrenchTruth</b><small>bot</small></div><span class="tg-ava"><svg width="20" height="20" viewBox="0 0 34 34" aria-hidden="true"><path d="M5 11.5h5.6v5.4h3.6v7h5.6v-7h3.6v-5.4H29" fill="none" stroke="#1C1C1C" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="17" cy="11.4" r="2.8" fill="#1C1C1C"/></svg></span></div>
+      <div class="chat" id="ph-chat" aria-live="polite"><div class="msg out">5EKWMRkatXSgMJ5Zwh38sKKFHeroeUFjVmFFnB6Q5bHg<div class="meta">9:41 <svg width="15" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M1 5.5 3.8 8.3 10 1.8M6.2 8.3 12.5 1.8" fill="none" stroke="#7CC4F5" stroke-width="1.5" stroke-linecap="round"/></svg></div></div><div class="msg in"><span class="title">SPIDY · SendtheSpidy</span><span class="verdict high">High risk</span>
+  <div class="sig"><span class="dot high"></span><span>Fresh wallet, but funded by a wallet that funded 53 other creators: 52 coins, 100% died within 5 minutes.</span></div><div class="sig"><span class="dot high"></span><span>Creator already sold, 58 s after launch.</span></div><div class="sig"><span class="dot high"></span><span>Coin died within 5 minutes: almost no SOL left in the curve.</span></div>
+  <div class="simline">If you had bought: 3 s <b>−2.6%</b> · 30 s <b>−4.3%</b></div><div class="meta">9:41</div></div>
+  <div class="kbd"><span>Funder wallet</span><span>Creator history</span><span>Share card</span><span>Check another</span></div></div>
+      <div class="tg-input"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 6.5 8.4 14.6a2 2 0 0 0 2.8 2.8l8-8a4 4 0 0 0-5.6-5.6l-8.3 8.3a6 6 0 0 0 8.5 8.5L20 15" fill="none" stroke="#7F91A4" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <span class="field" id="ph-field">Message</span>
+        <svg width="20" height="22" viewBox="0 0 20 24" aria-hidden="true"><rect x="6" y="2" width="8" height="13" rx="4" fill="none" stroke="#7F91A4" stroke-width="1.7"/><path d="M3 11a7 7 0 0 0 14 0M10 18v4" fill="none" stroke="#7F91A4" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+      <div class="home"></div><div class="glare"></div></div></div></div></div></div>
+        <div class="switch" role="group" aria-label="Example shown on the phone">
+          <button aria-pressed="true" data-i="0">Rug network</button>
+          <button aria-pressed="false" data-i="1">Bundled launch</button>
+          <button aria-pressed="false" data-i="2">Good creator</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="strip" aria-label="Real launches from our recording">
+    <div class="strip-label"><b>48 launches in 44 seconds</b><span>7 Oct 2026, 17:41:54–17:42:38 UTC. 41 were dead 5 minutes later.</span></div>
+    <div class="strip-run"><div class="strip-track" id="strip"><span class="launch"><span>EGcm…ircR</span><time>17:41:54</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>2ZQh…pump</span><time>17:41:56</time><span class="st dead">Dead in 5 min</span><span class="flag">Flagged funder</span></span><span class="launch"><span>6AeV…8zL2</span><time>17:41:58</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>9zxL…pump</span><time>17:41:58</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>4Xrf…pump</span><time>17:41:58</time><span class="st dead">Dead in 5 min</span><span class="flag">Flagged funder</span></span><span class="launch"><span>4YXC…QC7T</span><time>17:41:59</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>9Avt…pump</span><time>17:42:02</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>D3m8…qWt2</span><time>17:42:02</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>BLzU…v3es</span><time>17:42:03</time><span class="st alive">Alive at 5 min</span></span><span class="launch"><span>DkGk…pump</span><time>17:42:04</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>Bsi1…pump</span><time>17:42:05</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>6agK…3MF4</span><time>17:42:09</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>84Dj…UQvy</span><time>17:42:10</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>BPMe…pump</span><time>17:42:10</time><span class="st dead">Dead in 5 min</span><span class="flag">Flagged funder</span></span><span class="launch"><span>44WZ…pump</span><time>17:42:11</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>AKyo…C7in</span><time>17:42:13</time><span class="st dead">Dead in 5 min</span><span class="flag">Flagged funder</span></span><span class="launch"><span>7Wkj…Zf3k</span><time>17:42:14</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>DkxJ…Zmag</span><time>17:42:15</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>CfB8…pump</span><time>17:42:15</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>8vRf…pump</span><time>17:42:16</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>J9aF…3zdP</span><time>17:42:16</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>678x…9Mvn</span><time>17:42:16</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>HqpB…pump</span><time>17:42:17</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>8jaR…93bB</span><time>17:42:17</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>6cRn…ETV8</span><time>17:42:17</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>6RZs…4ba7</span><time>17:42:17</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>6pma…xsX9</span><time>17:42:19</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>G2iB…pump</span><time>17:42:22</time><span class="st dead">Dead in 5 min</span><span class="flag">Flagged funder</span></span><span class="launch"><span>D2wN…Rh87</span><time>17:42:22</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>C7WU…pump</span><time>17:42:23</time><span class="st dead">Dead in 5 min</span><span class="flag">Flagged funder</span></span><span class="launch"><span>CEdV…B7YH</span><time>17:42:23</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>Chv2…pump</span><time>17:42:23</time><span class="st alive">Alive at 5 min</span><span class="flag">Flagged funder</span></span><span class="launch"><span>A79e…pump</span><time>17:42:24</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>3Xo7…eLr8</span><time>17:42:24</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>Acod…pump</span><time>17:42:25</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>26yY…dzwa</span><time>17:42:25</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>TB4o…wkFW</span><time>17:42:26</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>E3cn…N4su</span><time>17:42:26</time><span class="st dead">Dead in 5 min</span><span class="flag">Flagged funder</span></span><span class="launch"><span>9R7U…pump</span><time>17:42:29</time><span class="st alive">Alive at 5 min</span></span><span class="launch"><span>8vgP…pump</span><time>17:42:30</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>DT6a…pump</span><time>17:42:30</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>5TWA…pump</span><time>17:42:30</time><span class="st alive">Alive at 5 min</span></span><span class="launch"><span>AgAY…pump</span><time>17:42:33</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>8QF2…x9iF</span><time>17:42:34</time><span class="st alive">Alive at 5 min</span></span><span class="launch"><span>BaUa…pump</span><time>17:42:35</time><span class="st alive">Alive at 5 min</span></span><span class="launch"><span>5mna…Ejxy</span><time>17:42:35</time><span class="st dead">Dead in 5 min</span></span><span class="launch"><span>9FKL…Cifi</span><time>17:42:37</time><span class="st dead">Dead in 5 min</span><span class="flag">Flagged funder</span></span><span class="launch"><span>Fx34…jXpE</span><time>17:42:38</time><span class="st alive">Alive at 5 min</span><span class="flag">Flagged funder</span></span></div></div>
+  </section>
+
+  <section class="features">
+    <div class="wrap">
+      <ul id="feat">
+        <li>Funder tracing <span>/</span></li>
+        <li>Creator track record <span>/</span></li>
+        <li>Jito bundle detection <span>/</span></li>
+        <li>First-block snipers <span>/</span></li>
+        <li>Reality simulator <span>/</span></li>
+        <li>English and Polish</li>
+      </ul>
+      <aside>Every signal comes from the coin's own on-chain history and from 15,008 launches we recorded and followed for five minutes each.</aside>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat"><span class="n" data-to="15008">15,008</span><p>pump.fun launches recorded on Solana mainnet, October 2026</p></div>
+      <div class="stat"><span class="n" data-to="82" data-suf="%">82%</span><p>of them were dead five minutes after launch</p></div>
+      <div class="stat"><span class="n" data-to="7983">7,983</span><p>creator wallets traced back to the wallet that funded them</p></div>
+      <div class="stat"><span class="n" data-to="168" data-suf=" ms">168 ms</span><p>faster launch detection from our own Solana shred decoder</p></div>
+    </div>
+  </div>
+
+  <section class="sec dark spot" id="how" style="margin-top:120px">
+    <div class="wrap">
+      <p class="eyebrow">How it works</p>
+      <h2>Paste. Trace. Know.</h2>
+      <div class="how-grid">
+        <div class="how-phone"><div id="phone-how"><div class="iphone"><span class="side action"></span><span class="side up"></span><span class="side down"></span><span class="side power"></span>
+    <div class="bezel"><div class="screen"><div class="island"></div><div class="status"><span>9:41</span><span class="icons"><svg width="17" height="11" viewBox="0 0 17 11" fill="#fff" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.6" y="5" width="3" height="6" rx="1"/><rect x="9.2" y="2.6" width="3" height="8.4" rx="1"/><rect x="13.8" y="0" width="3" height="11" rx="1"/></svg><svg width="15" height="11" viewBox="0 0 15 11" fill="#fff" aria-hidden="true"><path d="M7.5 2.2c2.2 0 4.2.8 5.7 2.2l1.1-1.2A9.9 9.9 0 0 0 7.5.5 9.9 9.9 0 0 0 .7 3.2l1.1 1.2a8.2 8.2 0 0 1 5.7-2.2Zm0 3.3c1.3 0 2.5.5 3.4 1.3l1.1-1.2a6.6 6.6 0 0 0-9 0l1.1 1.2c.9-.8 2.1-1.3 3.4-1.3Zm0 3.2c.5 0 .9.2 1.2.5L7.5 10.6 6.3 9.2c.3-.3.7-.5 1.2-.5Z"/></svg><svg width="27" height="12" viewBox="0 0 27 12" aria-hidden="true"><rect x=".5" y=".5" width="22" height="11" rx="3.5" fill="none" stroke="#fff" opacity=".45"/><rect x="2" y="2" width="19" height="8" rx="2" fill="#fff"/><path d="M24 4v4c.8-.3 1.5-1.1 1.5-2S24.8 4.3 24 4Z" fill="#fff" opacity=".5"/></svg></span></div>
+      <div class="tg-head"><span class="tg-back"><svg width="10" height="17" viewBox="0 0 10 17" aria-hidden="true"><path d="M8.5 1.5 2 8.5l6.5 7" fill="none" stroke="#6AB2F2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Chats</span>
+        <div class="tg-who"><b>TrenchTruth</b><small>bot</small></div><span class="tg-ava"><svg width="20" height="20" viewBox="0 0 34 34" aria-hidden="true"><path d="M5 11.5h5.6v5.4h3.6v7h5.6v-7h3.6v-5.4H29" fill="none" stroke="#1C1C1C" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="17" cy="11.4" r="2.8" fill="#1C1C1C"/></svg></span></div>
+      <div class="chat" id="pw-chat" aria-live="polite"><div class="msg in"><span class="title">TrenchTruth</span><span>Send me a pump.fun coin address and I will show you who is behind it.</span><div class="meta">9:40</div></div></div>
+      <div class="tg-input"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 6.5 8.4 14.6a2 2 0 0 0 2.8 2.8l8-8a4 4 0 0 0-5.6-5.6l-8.3 8.3a6 6 0 0 0 8.5 8.5L20 15" fill="none" stroke="#7F91A4" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <span class="field typed" id="pw-field">9EpAqWRz4fBxyx6Jh5duycbcYep3mVTbAYcjFLjzpump<span class="caret"></span></span>
+        <svg width="20" height="22" viewBox="0 0 20 24" aria-hidden="true"><rect x="6" y="2" width="8" height="13" rx="4" fill="none" stroke="#7F91A4" stroke-width="1.7"/><path d="M3 11a7 7 0 0 0 14 0M10 18v4" fill="none" stroke="#7F91A4" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+      <div class="home"></div><div class="glare"></div></div></div></div></div></div>
+        <div class="how-steps">
+          <div class="how-step active" data-step="0"><span class="no">01</span><h3>Paste a coin</h3><p>Send the bot any pump.fun address, or add it to your trading group so every member can check before they buy.</p></div>
+          <div class="how-step" data-step="1"><span class="no">02</span><h3>We trace it on-chain</h3><ul><li>the wallet that funded the creator, and everyone else it funded</li><li>the creator's earlier coins and how they ended</li><li>buys bundled with the launch through Jito</li><li>professional snipers in the very first block</li></ul></div>
+          <div class="how-step" data-step="2"><span class="no">03</span><h3>Get the truth</h3><p>A plain card with a verdict, the evidence behind it and a reality check: what a buyer 3 or 30 seconds in got, replayed from the coin's real trades.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec dark statement spot" id="money" style="padding-top:40px">
+    <div class="wrap">
+      <p class="eyebrow">Money trail</p>
+      <h2>One wallet funded 256 coin creators.</h2>
+      <p class="intro">93% of their 352 coins died within five minutes. Each creator wallet was brand new, so a normal dev check saw nothing. We trace the wallet that sent the creator its first SOL and check everyone else it funded.</p>
+      <div class="net">
+        <div class="canvas-box">
+          <canvas id="net" aria-label="Diagram: one funder wallet sending SOL to 53 creator wallets; every earlier coin is marked dead"></canvas>
+          <p class="cap">Real case behind SPIDY · one funder · 53 creators · 52 / 52 earlier coins dead in 5 minutes</p>
+        </div>
+        <div class="net-copy">
+          <div class="vs">
+            <div class="bad"><span class="n">91%</span><p>of launches from flagged funding networks died within 5 minutes (2,093 launches)</p></div>
+            <div><span class="n">78%</span><p>of other brand-new-wallet launches died within 5 minutes (4,712 launches)</p></div>
+          </div>
+          <div class="nets" aria-label="Largest funding networks in our data">
+            <div><span>Funder behind LOOTWOOD</span><b>256 creators · 352 coins · 93% dead</b></div>
+            <div><span>Funder behind Unison</span><b>204 creators · 281 coins · 84% dead</b></div>
+            <div><span>Funder behind SPIDY</span><b>53 creators · 52 coins · 100% dead</b></div>
+          </div>
+          <p>Funder tracing flags <b>24% of brand-new-wallet launches</b>. A coin's outcome enters our database only after it happened, so nothing here uses hindsight.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="compare">
+    <div class="wrap">
+      <p class="eyebrow">Why it is different</p>
+      <h2>A dev check looks at the wallet. We follow the money.</h2>
+      <div class="compare">
+        <table>
+          <thead><tr><th>What you learn</th><th>Typical dev-history check</th><th class="us">TrenchTruth</th></tr></thead>
+          <tbody>
+            <tr><td>The creator wallet's earlier coins</td><td class="c"><span class="yes" aria-hidden="true">✓</span><span class="sr">Yes</span></td><td class="c us"><span class="yes" aria-hidden="true">✓</span><span class="sr">Yes</span></td></tr>
+            <tr><td>Who funded a brand-new creator wallet, and their record</td><td class="c"><span class="no" aria-hidden="true">–</span><span class="sr">No</span></td><td class="c us"><span class="yes" aria-hidden="true">✓</span><span class="sr">Yes</span></td></tr>
+            <tr><td>Wallets bundled with the launch through Jito</td><td class="c"><span class="no" aria-hidden="true">–</span><span class="sr">No</span></td><td class="c us"><span class="yes" aria-hidden="true">✓</span><span class="sr">Yes</span></td></tr>
+            <tr><td>Professional snipers in the first block</td><td class="c"><span class="no" aria-hidden="true">–</span><span class="sr">No</span></td><td class="c us"><span class="yes" aria-hidden="true">✓</span><span class="sr">Yes</span></td></tr>
+            <tr><td>What a buyer 3 or 30 seconds in actually got</td><td class="c"><span class="no" aria-hidden="true">–</span><span class="sr">No</span></td><td class="c us"><span class="yes" aria-hidden="true">✓</span><span class="sr">Yes</span></td></tr>
+            <tr><td>Answers in Polish</td><td class="c"><span class="no" aria-hidden="true">–</span><span class="sr">No</span></td><td class="c us"><span class="yes" aria-hidden="true">✓</span><span class="sr">Yes</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec light" id="checks">
+    <div class="wrap">
+      <p class="eyebrow">Real checks · 8 October 2026</p>
+      <h2>What a buyer actually got.</h2>
+      <p class="intro">We replay each coin's real trades with pump.fun fees and the same exit rule for every coin. It does not call everything a scam.</p>
+      <div class="checks">
+        <article class="check">
+          <div class="check-top"><b>SPIDY</b><span class="pill high">High risk</span></div>
+          <p class="mint">5EKWMRkatXSgMJ5Zwh38sKKFHeroeUFjVmFFnB6Q5bHg</p>
+          <ul>
+            <li><span class="dot high"></span><span>Fresh wallet, funded by a wallet that funded 53 other creators: 52 coins, 100% died within 5 minutes.</span></li>
+            <li><span class="dot high"></span><span>Creator sold 58 seconds after launch.</span></li>
+          </ul>
+          <div class="results"><div><span>Buy at 3 s</span><b class="neg">−2.6%</b></div><div><span>Buy at 30 s</span><b class="neg">−4.3%</b></div></div>
+        </article>
+        <article class="check">
+          <div class="check-top"><b>Unison</b><span class="pill high">High risk</span></div>
+          <p class="mint">9EpAqWRz4fBxyx6Jh5duycbcYep3mVTbAYcjFLjzpump</p>
+          <ul>
+            <li><span class="dot high"></span><span>Funder's network: 204 other creators, 281 coins, 84% died within 5 minutes.</span></li>
+            <li><span class="dot high"></span><span>Creator bought in the same Jito bundle as the launch with 2 other wallets (2.86 SOL), then sold after 1 second.</span></li>
+          </ul>
+          <div class="results"><div><span>Buy at 3 s</span><b class="neg">−2.5%</b></div><div><span>Buy at 30 s</span><b class="neg">−2.5%</b></div></div>
+        </article>
+        <article class="check">
+          <div class="check-top"><b>retire</b><span class="pill medium">Medium risk</span></div>
+          <p class="mint">6KzQNkCU6tFif4a9ngu6rQ4eJhxxrBbQJYjD9oWpump</p>
+          <ul>
+            <li><span class="dot good"></span><span>Creator has a good record: 25 coins, only 40% died fast.</span></li>
+            <li><span class="dot warn"></span><span>4 professional bots bought the first block before any human.</span></li>
+          </ul>
+          <div class="results"><div><span>Buy at 3 s</span><b class="pos">+20.5%</b></div><div><span>Buy at 30 s</span><b class="pos">+20.5%</b></div></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="platforms">
+    <div class="wrap">
+      <p class="eyebrow">For platforms</p>
+      <h2>Built to plug into where people trade.</h2>
+      <div class="plats">
+        <div class="plat"><span class="state live">Live</span><h3>Telegram bot</h3><p>Private chats and trading groups. Free for traders, so it spreads with every check.</p></div>
+        <div class="plat"><span class="state">Next</span><h3>Risk API</h3><p>Funding-network clusters, first-block forensics and the simulator for terminals, launchpads, wallets and group bots.</p></div>
+        <div class="plat"><span class="state">Planned</span><h3>Verified fair launch</h3><p>Objective on-chain checks for honest creators. The badge is revoked automatically if the creator dumps.</p></div>
+      </div>
+      <div class="built"><p>Built on</p><span>Solana</span><span>pump.fun</span><span>Jito</span><span>Helius</span><span>Telegram</span></div>
+    </div>
+  </section>
+
+  <section class="sec" id="faq" style="padding-top:0">
+    <div class="wrap faq-grid">
+      <div><p class="eyebrow">FAQ</p><h2>Frequently asked questions</h2></div>
+      <div class="faq">
+        <details><summary>Does it trade for me or hold my funds?</summary><p>No. TrenchTruth only reads public on-chain data. It never asks for a private key, a seed phrase or a deposit.</p></details>
+        <details><summary>How do you know a funder is a rug network?</summary><p>We take the wallet that sent the creator its first SOL and look at every other creator it funded in our database of 15,008 launches. If those creators launched at least two coins and at least 80% died within five minutes, the funder is flagged. A coin's outcome enters the database only after it happened.</p></details>
+        <details><summary>Is this financial advice?</summary><p>No. It shows on-chain history and what happened to buyers before. Most memecoins lose money for the people who buy them, and a clean card is not a promise.</p></details>
+        <details><summary>Which coins does it cover?</summary><p>pump.fun coins on Solana today. Other launchpads are next.</p></details>
+        <details><summary>Can I add it to my group?</summary><p>Yes. Add the bot to a Telegram group and anyone can paste an address to get a card for the whole group.</p></details>
+        <details><summary>Is it open source?</summary><p>Yes. The bot, the scanner and our Solana shred decoder are MIT-licensed on GitHub.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec dark final spot">
+    <div class="wrap">
+      <h2>Check before<br><span>you buy.</span></h2>
+      <div class="ctas">
+        <a class="btn bot-link" href="https://t.me/TrenchTruthBot" target="_blank" rel="noopener">Open the bot</a>
+        <a class="btn line gh-link" href="https://github.com/Sadovsky33/trenchtruth" target="_blank" rel="noopener">Code on GitHub</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="logo" href="#top" aria-label="TrenchTruth home">
+          <svg width="30" height="30" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" fill="#F2F2F2"/><path d="M6 11.5h5.2v5.2h3.4v6.6h4.8v-6.6h3.4v-5.2H28" fill="none" stroke="#1C1C1C" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="17" cy="11.6" r="2.4" fill="#1C1C1C"/></svg>
+          <span class="word">TRENCH<span>TRUTH</span></span>
+        </a>
+        <p>An on-chain history check for memecoins. Built in Poland.</p>
+      </div>
+      <div><h4>Product</h4><ul><li><a class="bot-link" href="https://t.me/TrenchTruthBot" target="_blank" rel="noopener">Telegram bot</a></li><li>Risk API <small>· next</small></li><li>Verified fair launch <small>· planned</small></li></ul></div>
+      <div><h4>Research</h4><ul><li><a href="#money">Money trail</a></li><li><a href="#checks">Real checks</a></li><li><a href="#compare">Comparison</a></li></ul></div>
+      <div><h4>Open source</h4><ul><li><a class="gh-link" href="https://github.com/Sadovsky33/trenchtruth" target="_blank" rel="noopener">GitHub</a></li><li>MIT license</li><li>Colosseum World's Fair 2026</li></ul></div>
+    </div>
+    <div class="legal"><span>© 2026 TrenchTruth</span><span>Data: Solana mainnet, October 2026 · on-chain history, not financial advice</span></div>
+  </div>
+</footer>
+
+<script>
+// Fill these in once the bot and the repository exist.
+const BOT_USERNAME = 'TrenchTruthBot';
+const GITHUB_URL = 'https://github.com/Sadovsky33/trenchtruth';
+
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fine = matchMedia('(pointer: fine)').matches;
+document.querySelectorAll('.bot-link').forEach((a) => { if (BOT_USERNAME) { a.href = 'https://t.me/' + BOT_USERNAME; a.target = '_blank'; a.rel = 'noopener'; } });
+document.querySelectorAll('.gh-link').forEach((a) => { if (GITHUB_URL) { a.href = GITHUB_URL; if (a.classList.contains('btn')) a.textContent = 'Code on GitHub'; a.target = '_blank'; a.rel = 'noopener'; } });
+const hdr = document.getElementById('hdr');
+
+// ---------- iPhone ----------
+const LOGO_SM = '<svg width="20" height="20" viewBox="0 0 34 34" aria-hidden="true"><path d="M5 11.5h5.6v5.4h3.6v7h5.6v-7h3.6v-5.4H29" fill="none" stroke="#1C1C1C" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="17" cy="11.4" r="2.8" fill="#1C1C1C"/></svg>';
+const STATUS = '<span>9:41</span><span class="icons">'
+  + '<svg width="17" height="11" viewBox="0 0 17 11" fill="#fff" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.6" y="5" width="3" height="6" rx="1"/><rect x="9.2" y="2.6" width="3" height="8.4" rx="1"/><rect x="13.8" y="0" width="3" height="11" rx="1"/></svg>'
+  + '<svg width="15" height="11" viewBox="0 0 15 11" fill="#fff" aria-hidden="true"><path d="M7.5 2.2c2.2 0 4.2.8 5.7 2.2l1.1-1.2A9.9 9.9 0 0 0 7.5.5 9.9 9.9 0 0 0 .7 3.2l1.1 1.2a8.2 8.2 0 0 1 5.7-2.2Zm0 3.3c1.3 0 2.5.5 3.4 1.3l1.1-1.2a6.6 6.6 0 0 0-9 0l1.1 1.2c.9-.8 2.1-1.3 3.4-1.3Zm0 3.2c.5 0 .9.2 1.2.5L7.5 10.6 6.3 9.2c.3-.3.7-.5 1.2-.5Z"/></svg>'
+  + '<svg width="27" height="12" viewBox="0 0 27 12" aria-hidden="true"><rect x=".5" y=".5" width="22" height="11" rx="3.5" fill="none" stroke="#fff" opacity=".45"/><rect x="2" y="2" width="19" height="8" rx="2" fill="#fff"/><path d="M24 4v4c.8-.3 1.5-1.1 1.5-2S24.8 4.3 24 4Z" fill="#fff" opacity=".5"/></svg></span>';
+const CHECKS2 = '<svg width="15" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M1 5.5 3.8 8.3 10 1.8M6.2 8.3 12.5 1.8" fill="none" stroke="#7CC4F5" stroke-width="1.5" stroke-linecap="round"/></svg>';
+function phone(id) {
+  return `<div class="iphone"><span class="side action"></span><span class="side up"></span><span class="side down"></span><span class="side power"></span>
+    <div class="bezel"><div class="screen"><div class="island"></div><div class="status">${STATUS}</div>
+      <div class="tg-head"><span class="tg-back"><svg width="10" height="17" viewBox="0 0 10 17" aria-hidden="true"><path d="M8.5 1.5 2 8.5l6.5 7" fill="none" stroke="#6AB2F2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Chats</span>
+        <div class="tg-who"><b>TrenchTruth</b><small>bot</small></div><span class="tg-ava">${LOGO_SM}</span></div>
+      <div class="chat" id="${id}-chat" aria-live="polite"></div>
+      <div class="tg-input"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 6.5 8.4 14.6a2 2 0 0 0 2.8 2.8l8-8a4 4 0 0 0-5.6-5.6l-8.3 8.3a6 6 0 0 0 8.5 8.5L20 15" fill="none" stroke="#7F91A4" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <span class="field" id="${id}-field">Message</span>
+        <svg width="20" height="22" viewBox="0 0 20 24" aria-hidden="true"><rect x="6" y="2" width="8" height="13" rx="4" fill="none" stroke="#7F91A4" stroke-width="1.7"/><path d="M3 11a7 7 0 0 0 14 0M10 18v4" fill="none" stroke="#7F91A4" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+      <div class="home"></div><div class="glare"></div></div></div></div>`;
+}
+document.getElementById('phone-hero').innerHTML = phone('ph');
+document.getElementById('phone-how').innerHTML = phone('pw');
+
+const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const CASES = [
+  { mint: '5EKWMRkatXSgMJ5Zwh38sKKFHeroeUFjVmFFnB6Q5bHg', name: 'SPIDY · SendtheSpidy', verdict: ['high', 'High risk'],
+    sigs: [['high', 'Fresh wallet, but funded by a wallet that funded 53 other creators: 52 coins, 100% died within 5 minutes.'],
+           ['high', 'Creator already sold, 58 s after launch.'],
+           ['high', 'Coin died within 5 minutes: almost no SOL left in the curve.']], sim: ['−2.6%', '−4.3%'] },
+  { mint: '9EpAqWRz4fBxyx6Jh5duycbcYep3mVTbAYcjFLjzpump', name: 'Unison', verdict: ['high', 'High risk'],
+    sigs: [['high', 'Fresh wallet, but funded by a wallet that funded 204 other creators: 281 coins, 84% died within 5 minutes.'],
+           ['high', 'Creator bought in the same Jito bundle as the launch with 2 other wallets (2.86 SOL).'],
+           ['high', 'Creator already sold, 1 s after launch.']], sim: ['−2.5%', '−2.5%'] },
+  { mint: '6KzQNkCU6tFif4a9ngu6rQ4eJhxxrBbQJYjD9oWpump', name: 'retire · buy and retire', verdict: ['medium', 'Medium risk'],
+    sigs: [['good', 'Creator has a good record: 25 coins, only 40% died fast.'],
+           ['warn', '5 buys in the very first block, 4 by professional bots: you would buy after them.']], sim: ['+20.5%', '+20.5%'] },
+];
+const outMsg = (m) => `<div class="msg out">${m}<div class="meta">9:41 ${CHECKS2}</div></div>`;
+const cardMsg = (c) => `<div class="msg in"><span class="title">${esc(c.name)}</span><span class="verdict ${c.verdict[0]}">${c.verdict[1]}</span>
+  ${c.sigs.map(([l, t]) => `<div class="sig"><span class="dot ${l}"></span><span>${esc(t)}</span></div>`).join('')}
+  <div class="simline">If you had bought: 3 s <b>${c.sim[0]}</b> · 30 s <b>${c.sim[1]}</b></div><div class="meta">9:41</div></div>
+  <div class="kbd"><span>Funder wallet</span><span>Creator history</span><span>Share card</span><span>Check another</span></div>`;
+const typing = '<div class="typing" aria-label="Bot is typing"><i></i><i></i><i></i></div>';
+
+// Hero phone: cycles through the three real checks.
+const heroChat = document.getElementById('ph-chat');
+const sw = [...document.querySelectorAll('.switch button')];
+let cur = 0, timer = null, seq = 0;
+function showCase(i, animate) {
+  cur = i; const my = ++seq; const c = CASES[i];
+  sw.forEach((b, k) => b.setAttribute('aria-pressed', String(k === i)));
+  if (!animate || reduce) { heroChat.innerHTML = outMsg(c.mint) + cardMsg(c); return; }
+  heroChat.innerHTML = outMsg(c.mint) + typing;
+  setTimeout(() => { if (my === seq) heroChat.innerHTML = outMsg(c.mint) + cardMsg(c); }, 1100);
+}
+showCase(0, false);
+sw.forEach((b) => b.addEventListener('click', () => { clearInterval(timer); showCase(Number(b.dataset.i), true); }));
+if (!reduce) timer = setInterval(() => showCase((cur + 1) % CASES.length, true), 8000);
+
+// 3D tilt follows the pointer over the hero.
+const tilt = document.getElementById('tilt');
+const heroEl = document.querySelector('.hero');
+if (fine && !reduce) {
+  heroEl.addEventListener('pointermove', (e) => {
+    const r = heroEl.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+    tilt.style.transform = `rotateY(${x * 14 - 6}deg) rotateX(${-y * 10 + 2}deg)`;
+  });
+  heroEl.addEventListener('pointerleave', () => { tilt.style.transform = 'rotateY(-6deg) rotateX(2deg)'; });
+  tilt.style.transform = 'rotateY(-6deg) rotateX(2deg)';
+}
+
+// How-it-works phone changes screen per step.
+const howChat = document.getElementById('pw-chat');
+const howField = document.getElementById('pw-field');
+const U = CASES[1];
+const SCREENS = [
+  () => { howField.className = 'field typed'; howField.innerHTML = esc(U.mint) + '<span class="caret"></span>';
+    return '<div class="msg in"><span class="title">TrenchTruth</span><span>Send me a pump.fun coin address and I will show you who is behind it.</span><div class="meta">9:40</div></div>'; },
+  () => { howField.className = 'field'; howField.textContent = 'Message';
+    const items = ['Launch transaction', 'Creator funded by iGdF…Sdwu', 'Funder checked: 204 other creators', 'Jito bundle found: 2 wallets', 'Real trades replayed'];
+    return outMsg(U.mint) + `<div class="msg in"><span class="title">Checking Unison…</span><div class="checklist">${items.map((t) => `<div><span class="tick">✓</span>${esc(t)}</div>`).join('')}</div><div class="meta">9:41</div></div>`; },
+  () => { howField.className = 'field'; howField.textContent = 'Message'; return outMsg(U.mint) + cardMsg(U); },
+];
+let step = -1;
+function setStep(i) { if (i === step) return; step = i; howChat.innerHTML = SCREENS[i](); document.querySelectorAll('.how-step').forEach((s, k) => s.classList.toggle('active', k === i)); }
+setStep(0);
+// The active step is the last one whose top has passed the middle of the screen.
+const howSteps = [...document.querySelectorAll('.how-step')];
+const darkSecs = [...document.querySelectorAll('.dark')];
+let ticking = false;
+function onScroll() {
+  ticking = false;
+  const mid = innerHeight * 0.55;
+  let a = 0;
+  howSteps.forEach((s, k) => { if (s.getBoundingClientRect().top < mid) a = k; });
+  setStep(a);
+  hdr.classList.toggle('scrolled', scrollY > 10);
+  const hb = hdr.getBoundingClientRect().bottom - 1;
+  hdr.classList.toggle('on-dark', darkSecs.some((s) => { const r = s.getBoundingClientRect(); return r.top <= hb && r.bottom > hb; }));
+}
+addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(onScroll); } }, { passive: true });
+addEventListener('resize', onScroll);
+onScroll();
+
+// ---------- Real launches strip (7 Oct 2026, 17:41:54–17:42:38 UTC) ----------
+const LAUNCHES = [["EGcm…ircR","17:41:54",1,0],["2ZQh…pump","17:41:56",1,1],["6AeV…8zL2","17:41:58",1,0],["9zxL…pump","17:41:58",1,0],["4Xrf…pump","17:41:58",1,1],["4YXC…QC7T","17:41:59",1,0],["9Avt…pump","17:42:02",1,0],["D3m8…qWt2","17:42:02",1,0],["BLzU…v3es","17:42:03",0,0],["DkGk…pump","17:42:04",1,0],["Bsi1…pump","17:42:05",1,0],["6agK…3MF4","17:42:09",1,0],["84Dj…UQvy","17:42:10",1,0],["BPMe…pump","17:42:10",1,1],["44WZ…pump","17:42:11",1,0],["AKyo…C7in","17:42:13",1,1],["7Wkj…Zf3k","17:42:14",1,0],["DkxJ…Zmag","17:42:15",1,0],["CfB8…pump","17:42:15",1,0],["8vRf…pump","17:42:16",1,0],["J9aF…3zdP","17:42:16",1,0],["678x…9Mvn","17:42:16",1,0],["HqpB…pump","17:42:17",1,0],["8jaR…93bB","17:42:17",1,0],["6cRn…ETV8","17:42:17",1,0],["6RZs…4ba7","17:42:17",1,0],["6pma…xsX9","17:42:19",1,0],["G2iB…pump","17:42:22",1,1],["D2wN…Rh87","17:42:22",1,0],["C7WU…pump","17:42:23",1,1],["CEdV…B7YH","17:42:23",1,0],["Chv2…pump","17:42:23",0,1],["A79e…pump","17:42:24",1,0],["3Xo7…eLr8","17:42:24",1,0],["Acod…pump","17:42:25",1,0],["26yY…dzwa","17:42:25",1,0],["TB4o…wkFW","17:42:26",1,0],["E3cn…N4su","17:42:26",1,1],["9R7U…pump","17:42:29",0,0],["8vgP…pump","17:42:30",1,0],["DT6a…pump","17:42:30",1,0],["5TWA…pump","17:42:30",0,0],["AgAY…pump","17:42:33",1,0],["8QF2…x9iF","17:42:34",0,0],["BaUa…pump","17:42:35",0,0],["5mna…Ejxy","17:42:35",1,0],["9FKL…Cifi","17:42:37",1,1],["Fx34…jXpE","17:42:38",0,1]];
+const chipHTML = ([m, t, dead, flag]) => `<span class="launch"><span>${m}</span><time>${t}</time><span class="st ${dead ? 'dead' : 'alive'}">${dead ? 'Dead in 5 min' : 'Alive at 5 min'}</span>${flag ? '<span class="flag">Flagged funder</span>' : ''}</span>`;
+const once = LAUNCHES.map(chipHTML).join('');
+document.getElementById('strip').innerHTML = once + (reduce ? '' : once);
+if (reduce) { const run = document.querySelector('.strip-run'); run.style.overflowX = 'auto'; }
+
+// ---------- Feature list darkens line by line ----------
+const feats = [...document.querySelectorAll('#feat li')];
+if (reduce || !('IntersectionObserver' in window)) feats.forEach((li) => li.classList.add('on'));
+else {
+  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -38% 0px' });
+  feats.forEach((li) => io.observe(li));
+}
+
+// ---------- Count-up stats (final values are already in the HTML) ----------
+if (!reduce && 'IntersectionObserver' in window) {
+  const fmt = (n) => n.toLocaleString('en-US');
+  const io = new IntersectionObserver((es) => es.forEach((e) => {
+    if (!e.isIntersecting) return; io.unobserve(e.target);
+    const el = e.target, to = Number(el.dataset.to), suf = el.dataset.suf || ''; const t0 = performance.now();
+    const step = (t) => { const k = Math.min(1, (t - t0) / 1300); const v = Math.round(to * (1 - Math.pow(1 - k, 3))); el.textContent = fmt(v) + suf; if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }), { threshold: 0.6 });
+  document.querySelectorAll('.stat .n').forEach((el) => io.observe(el));
+}
+
+// ---------- Soft spotlight on dark sections ----------
+if (fine && !reduce) document.querySelectorAll('.spot').forEach((s) => s.addEventListener('pointermove', (e) => {
+  const r = s.getBoundingClientRect(); s.style.setProperty('--mx', (e.clientX - r.left) + 'px'); s.style.setProperty('--my', (e.clientY - r.top) + 'px');
+}));
+
+// ---------- Money trail canvas: one funder, 53 creators, SOL pulses ----------
+const cv = document.getElementById('net');
+const ctx = cv.getContext('2d');
+const N = 53;
+let W = 0, H = 0, nodes = [], pulses = [], running = false, last = 0;
+function layout() {
+  const r = cv.getBoundingClientRect(); const dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = r.width; H = r.height; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  nodes = [];
+  for (let i = 0; i < N; i++) {
+    const ring = i % 2 ? 0.38 : 0.29, a = (i / N) * Math.PI * 2 - Math.PI / 2, j = Math.sin(i * 12.9898) * 0.02;
+    nodes.push({ x: W / 2 + Math.cos(a) * W * (ring + j), y: H / 2 - 10 + Math.sin(a) * H * (ring + j), last: i === N - 1 });
+  }
+}
+function draw(t) {
+  ctx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2 - 10;
+  for (const n of nodes) { ctx.strokeStyle = n.last ? 'rgba(255,255,255,.7)' : 'rgba(255,255,255,.09)'; ctx.lineWidth = n.last ? 1.5 : 1; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(n.x, n.y); ctx.stroke(); }
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  for (const p of pulses) { const n = nodes[p.i]; ctx.beginPath(); ctx.arc(cx + (n.x - cx) * p.k, cy + (n.y - cy) * p.k, 1.8, 0, Math.PI * 2); ctx.fill(); }
+  for (const n of nodes) {
+    if (n.last) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.fillStyle = '#141414'; ctx.beginPath(); ctx.arc(n.x, n.y, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    else { ctx.fillStyle = '#E5484D'; ctx.beginPath(); ctx.arc(n.x, n.y, 4, 0, Math.PI * 2); ctx.fill(); }
+  }
+  const pulse = reduce ? 0 : (Math.sin(t / 600) + 1) / 2;
+  ctx.strokeStyle = `rgba(255,255,255,${0.12 + pulse * 0.18})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, 22 + pulse * 8, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#F2F2F2'; ctx.beginPath(); ctx.arc(cx, cy, 11, 0, Math.PI * 2); ctx.fill();
+}
+function tick(t) {
+  if (!running) return;
+  const dt = Math.min(50, t - (last || t)); last = t;
+  if (Math.random() < 0.07) pulses.push({ i: Math.floor(Math.random() * N), k: 0 });
+  pulses.forEach((p) => { p.k += dt / 1100; }); pulses = pulses.filter((p) => p.k < 1);
+  draw(t); requestAnimationFrame(tick);
+}
+layout(); draw(0);
+addEventListener('resize', () => { layout(); draw(performance.now()); });
+if (!reduce && 'IntersectionObserver' in window) {
+  new IntersectionObserver((es) => { const vis = es.some((e) => e.isIntersecting); if (vis && !running) { running = true; last = 0; requestAnimationFrame(tick); } if (!vis) running = false; }).observe(cv);
+}
+</script>
+</body>
+</html>

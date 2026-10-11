@@ -3,6 +3,7 @@
 // Telegram language). Plain Bot API over HTTPS, long polling, no dependencies.
 // Token: BOT_TOKEN env or bot-token.txt in the repo root. Optional referral link: AXIOM_REF env or
 // axiom-ref.txt. Run: node src/bot.mjs
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { scanMint } from './scan.mjs';
@@ -12,11 +13,31 @@ const TOKEN = (process.env.BOT_TOKEN || fs.readFileSync(path.join(ROOT, 'bot-tok
 const REF_FILE = path.join(ROOT, 'axiom-ref.txt');
 const AXIOM_REF = (process.env.AXIOM_REF || (fs.existsSync(REF_FILE) ? fs.readFileSync(REF_FILE, 'utf8') : '')).trim();
 const API = `https://api.telegram.org/bot${TOKEN}`;
+// Anonymous usage log (logs/usage.jsonl): time, a salted hash of the chat id, chat type, verdict. No names,
+// usernames or message text, so it only counts checks and distinct chats.
+const LOG_DIR = path.join(ROOT, 'logs');
+const SALT = crypto.createHash('sha256').update(TOKEN).digest('hex');
+function logUse(msg, verdict) {
+  try {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    const chat = crypto.createHash('sha256').update(SALT + msg.chat.id).digest('hex').slice(0, 12);
+    fs.appendFileSync(path.join(LOG_DIR, 'usage.jsonl'), JSON.stringify({ t: Date.now(), chat, type: msg.chat.type, verdict }) + '\n');
+  } catch { /* the log must never break a reply */ }
+}
 const tg = async (method, body) => {
   const r = await fetch(`${API}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   return r.json();
 };
-const ADDR = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/;
+// A coin address is a 32–44 character base58 run. Copying a message can glue extra characters onto it
+// (e.g. the time "17:37" → "…pump17"), so for longer runs we look for the pump.fun "…pump" ending inside.
+function findMint(text) {
+  for (const run of text.match(/[1-9A-HJ-NP-Za-km-z]{32,}/g) || []) {
+    if (run.length <= 44) return run;
+    const m = run.match(/[1-9A-HJ-NP-Za-km-z]{28,40}pump/);
+    if (m) return m[0];
+  }
+  return null;
+}
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const pct = (x) => `${x >= 0 ? '+' : ''}${(100 * x).toFixed(0)}%`;
 // Polish uses a decimal comma.
@@ -36,6 +57,7 @@ const T = {
     foot: 'Informacja, nie porada inwestycyjna.',
     ref: 'Link do Axiom jest linkiem polecającym.',
     notFound: 'Nie znalazłem tej monety na pump.fun.',
+    noAddr: 'Nie widzę tu adresu monety. Wklej sam adres z pump.fun (32–44 znaki, zwykle kończy się na „pump”).',
     err: 'Coś poszło nie tak przy sprawdzaniu. Spróbuj za chwilę.',
     hello: 'Wklej adres monety z pump.fun, a powiem Ci, czy wygląda na oszustwo i co by było, gdybyś ją kupił.',
   },
@@ -52,6 +74,7 @@ const T = {
     foot: 'Information, not financial advice.',
     ref: 'The Axiom link is a referral link.',
     notFound: 'I could not find this coin on pump.fun.',
+    noAddr: 'I cannot see a coin address here. Paste just the pump.fun address (32–44 characters, usually ending in "pump").',
     err: 'Something went wrong while checking. Try again in a moment.',
     hello: 'Paste a pump.fun coin address and I will tell you if it looks like a scam and what would have happened if you had bought it.',
   },
@@ -78,18 +101,30 @@ function card(r, L) {
 }
 
 const busy = new Set();
+const langOf = new Map(); // chat id -> 'pl' | 'en' chosen with /pl or /en (until the bot restarts)
 async function handle(msg) {
   const text = msg.text || msg.caption || '';
-  const L = (msg.from?.language_code || '').startsWith('pl') ? 'pl' : 'en';
+  const pick = text.match(/^\/(pl|en)\b/);
+  if (pick) {
+    langOf.set(msg.chat.id, pick[1]);
+    return tg('sendMessage', { chat_id: msg.chat.id, text: pick[1] === 'pl' ? 'Od teraz odpowiadam po polsku.' : 'I will answer in English from now on.' });
+  }
+  const L = langOf.get(msg.chat.id) || ((msg.from?.language_code || '').startsWith('pl') ? 'pl' : 'en');
   if (/^\/start/.test(text)) return tg('sendMessage', { chat_id: msg.chat.id, text: T[L].hello });
-  const m = text.match(ADDR);
-  if (!m) return;
+  const mint = findMint(text);
+  if (!mint) {
+    // In a private chat say what went wrong; in groups stay quiet so normal conversation is not interrupted.
+    if (msg.chat.type === 'private' && text.trim()) return tg('sendMessage', { chat_id: msg.chat.id, text: T[L].noAddr, reply_to_message_id: msg.message_id });
+    return;
+  }
+  const m = [mint];
   const key = `${msg.chat.id}:${m[0]}`;
   if (busy.has(key)) return;
   busy.add(key);
   const wait = await tg('sendMessage', { chat_id: msg.chat.id, text: T[L].scanning, reply_to_message_id: msg.message_id });
   try {
     const r = await scanMint(m[0]);
+    logUse(msg, r.error ? 'notfound' : r.verdict);
     const c = card(r, L);
     await tg('editMessageText', { chat_id: msg.chat.id, message_id: wait.result.message_id, text: c.text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: c.reply_markup });
   } catch (e) {
