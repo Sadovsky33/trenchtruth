@@ -24,9 +24,17 @@ function logUse(msg, verdict) {
     fs.appendFileSync(path.join(LOG_DIR, 'usage.jsonl'), JSON.stringify({ t: Date.now(), chat, type: msg.chat.type, verdict }) + '\n');
   } catch { /* the log must never break a reply */ }
 }
+// One retry on a dropped connection (e.g. ECONNRESET), which otherwise loses a reply.
 const tg = async (method, body) => {
-  const r = await fetch(`${API}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  return r.json();
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const r = await fetch(`${API}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      return await r.json();
+    } catch (e) {
+      if (attempt >= 1 || method === 'getUpdates') throw e;
+      await new Promise((ok) => setTimeout(ok, 1000));
+    }
+  }
 };
 // A coin address is a 32–44 character base58 run. Copying a message can glue extra characters onto it
 // (e.g. the time "17:37" → "…pump17"), so for longer runs we look for the pump.fun "…pump" ending inside.
@@ -53,7 +61,7 @@ const T = {
     simNow: (d, r, age) => `Gdybyś kupił ${d} s po starcie (0,5 SOL): na razie <b>${r}</b> (moneta ma ${age} s, wynik końcowy po 5 min)`,
     why: { zysk: 'cel zysku', strata: 'limit straty', czas: 'po 5 min' },
     none: 'Brak wyraźnych sygnałów ryzyka w danych z pierwszych minut.',
-    buy: 'Kup na Axiom (−10% opłat)',
+    buy: 'Wykres na Axiom',
     foot: 'Informacja, nie porada inwestycyjna.',
     ref: 'Link do Axiom jest linkiem polecającym.',
     notFound: 'Nie znalazłem tej monety na pump.fun. Jeśli powstała przed chwilą, spróbuj ponownie za kilka sekund.',
@@ -70,7 +78,7 @@ const T = {
     simNow: (d, r, age) => `If you had bought ${d} s after launch (0.5 SOL): so far <b>${r}</b> (coin is ${age} s old, final result after 5 min)`,
     why: { zysk: 'take profit', strata: 'stop loss', czas: 'after 5 min' },
     none: 'No clear risk signals in the first minutes of data.',
-    buy: 'Buy on Axiom (−10% fees)',
+    buy: 'Chart on Axiom',
     foot: 'Information, not financial advice.',
     ref: 'The Axiom link is a referral link.',
     notFound: 'I could not find this coin on pump.fun. If it launched a moment ago, try again in a few seconds.',
@@ -83,6 +91,8 @@ const T = {
 function card(r, L) {
   const t = T[L];
   if (r.error) return { text: t.notFound };
+  // Never put a trading link under a high-risk warning.
+  const showRef = AXIOM_REF && r.verdict !== 'high';
   const lines = [
     `<b>${esc(r.symbol)}</b> · ${esc(r.name)}`,
     `<code>${r.mint}</code>`,
@@ -94,9 +104,9 @@ function card(r, L) {
     ...r.sims.map((s) => (s.tooEarly ? t.simEarly(s.delaySec, r.ageSec) : s.pending && s.reason === 'czas' ? t.simNow(s.delaySec, pct(s.ret), r.ageSec) : t.sim(s.delaySec, pct(s.ret), t.why[s.reason]))),
     '',
     `<i>${esc(r.note[L])}</i>`,
-    `<i>${t.foot}${AXIOM_REF ? ' ' + t.ref : ''}</i>`,
+    `<i>${t.foot}${showRef ? ' ' + t.ref : ''}</i>`,
   ];
-  const kb = AXIOM_REF ? { inline_keyboard: [[{ text: t.buy, url: `${AXIOM_REF}${AXIOM_REF.includes('?') ? '&' : '?'}chain=sol&address=${r.mint}` }]] } : undefined;
+  const kb = showRef ? { inline_keyboard: [[{ text: t.buy, url: `${AXIOM_REF}${AXIOM_REF.includes('?') ? '&' : '?'}chain=sol&address=${r.mint}` }]] } : undefined;
   return { text: lines.join('\n').replace(/\n{3,}/g, '\n\n'), reply_markup: kb };
 }
 
@@ -107,7 +117,10 @@ async function handle(msg) {
   const pick = text.match(/^\/(pl|en)\b/);
   if (pick) {
     langOf.set(msg.chat.id, pick[1]);
-    return tg('sendMessage', { chat_id: msg.chat.id, text: pick[1] === 'pl' ? 'Od teraz odpowiadam po polsku.' : 'I will answer in English from now on.' });
+    await tg('sendMessage', { chat_id: msg.chat.id, text: pick[1] === 'pl' ? 'Od teraz odpowiadam po polsku.' : 'I will answer in English from now on.' });
+    // In a private chat show the menu right away; in groups the confirmation is enough.
+    if (msg.chat.type === 'private') await sendMenu(msg.chat.id, pick[1]);
+    return;
   }
   const L = langOf.get(msg.chat.id) || ((msg.from?.language_code || '').startsWith('pl') ? 'pl' : 'en');
   if (/^\/start/.test(text)) return sendMenu(msg.chat.id, L);
@@ -124,8 +137,9 @@ async function checkCoin(chat, mint, L, replyTo) {
   const key = `${chat.id}:${mint}`;
   if (busy.has(key)) return false;
   busy.add(key);
-  const wait = await tg('sendMessage', { chat_id: chat.id, text: T[L].scanning, ...(replyTo ? { reply_to_message_id: replyTo } : {}) });
+  let wait;
   try {
+    wait = await tg('sendMessage', { chat_id: chat.id, text: T[L].scanning, ...(replyTo ? { reply_to_message_id: replyTo } : {}) });
     let r = await scanMint(mint);
     // A coin launched seconds ago may not be indexed yet: try once more.
     if (r.error) { await new Promise((ok) => setTimeout(ok, 4000)); r = await scanMint(mint); }
@@ -134,7 +148,7 @@ async function checkCoin(chat, mint, L, replyTo) {
     await tg('editMessageText', { chat_id: chat.id, message_id: wait.result.message_id, text: c.text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: c.reply_markup });
   } catch (e) {
     console.error(new Date().toISOString(), 'błąd', String(e).slice(0, 200));
-    await tg('editMessageText', { chat_id: chat.id, message_id: wait.result.message_id, text: T[L].err });
+    if (wait?.result) await tg('editMessageText', { chat_id: chat.id, message_id: wait.result.message_id, text: T[L].err }).catch(() => {});
   } finally { busy.delete(key); }
 }
 
@@ -187,7 +201,12 @@ process.on('SIGTERM', async () => {
 });
 
 let offset = 0;
-const me = await tg('getMe', {});
+// A network error at start must not kill the bot: keep trying until Telegram answers.
+let me;
+while (!me?.ok) {
+  me = await tg('getMe', {}).catch(() => null);
+  if (!me?.ok) await new Promise((r) => setTimeout(r, 3000));
+}
 console.log(`Bot @${me.result?.username} działa.`);
 for (;;) {
   try {
