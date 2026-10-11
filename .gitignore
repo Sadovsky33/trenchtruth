@@ -1,0 +1,9 @@
+helius-key.txt
+bot-token.txt
+axiom-ref.txt
+*.key
+wallet.json
+node_modules/
+data/*.jsonl
+!data/launches.sample.jsonl
+logs/
